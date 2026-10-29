@@ -290,11 +290,13 @@ h1 {
 }
 
 /* All games */
-.all {
+.all,
+.remote {
   margin-top: 52px;
 }
 
-.all h2 {
+.all h2,
+.remote > h2 {
   margin: 0 0 18px;
   font-family: var(--display);
   font-size: 13px;
@@ -399,6 +401,125 @@ h1 {
   font-size: 16px;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+}
+
+/* Other arcades */
+.connect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.connect input {
+  flex: 1 1 240px;
+  max-width: 380px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.connect button {
+  padding: 11px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(90deg, var(--cyan), #8fe9ff);
+  color: #0b0618;
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.connect button:hover {
+  box-shadow: 0 0 22px rgba(70, 217, 255, 0.45);
+}
+
+.connect-error {
+  margin: 10px 0 0;
+  color: #ffb3bd;
+}
+
+.hint {
+  margin: 12px 0 0;
+  max-width: 70ch;
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.source {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(16, 13, 33, 0.72);
+}
+
+.source-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.source-names {
+  min-width: 0;
+}
+
+.source-head h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.source-addr {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.source-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ghost {
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ghost:hover {
+  border-color: var(--cyan);
+}
+
+.source-status {
+  margin: 0;
+  color: var(--muted);
+}
+
+.source-status.error {
+  color: #ffb3bd;
+}
+
+.source .grid:empty {
+  display: none;
 }
 
 .no-match,

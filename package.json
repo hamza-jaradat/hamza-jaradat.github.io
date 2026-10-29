@@ -8,6 +8,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "preview": "vite preview --outDir dist --port 4173",
+    "serve": "node scripts/build.mjs && node scripts/serve.mjs",
     "new-game": "node scripts/new-game.mjs"
   },
   "devDependencies": {

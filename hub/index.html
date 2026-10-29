@@ -32,6 +32,30 @@
       </header>
 
       <main>{{content}}
+
+        <section class="remote" aria-labelledby="remote-title">
+          <h2 id="remote-title">Other arcades</h2>
+          <form class="connect" id="connect" novalidate>
+            <input
+              id="connect-address"
+              type="text"
+              inputmode="url"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="192.168.1.20:8080"
+              aria-label="Address of another arcade: IP address, host name or URL"
+              aria-describedby="connect-hint"
+            />
+            <button type="submit">Connect</button>
+          </form>
+          <p class="connect-error" id="connect-error" role="alert" hidden></p>
+          <p class="hint" id="connect-hint">
+            Play games from another arcade by its address, like a computer on your network running
+            <code>npm run serve</code>.
+          </p>
+          <div id="sources"></div>
+        </section>
       </main>
 
       <footer class="foot">

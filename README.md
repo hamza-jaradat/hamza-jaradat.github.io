@@ -20,6 +20,32 @@ site.json         launcher title and tagline
 | `npm run build` | Builds every game plus the launcher into `dist/` |
 | `npm run preview` | Serves `dist/` at http://localhost:4173, the way GitHub Pages will |
 | `npm run new-game -- "My Game"` | Creates `games/my-game/` from the starter template |
+| `npm run serve` | Builds, then shares the arcade with other devices on your network (port 8080) |
+
+## Playing games from another computer
+
+The launcher's **Other arcades** box loads games from another arcade by its address.
+
+1. On the computer with the games, run `npm run serve`. It prints addresses like
+   `192.168.1.20:8080` (use `npm run serve -- --port 9000` to pick another port).
+   The first time, Windows may ask whether Node.js can use the network: allow it on
+   private networks.
+2. In any arcade's launcher, enter that address under **Other arcades** and press
+   **Connect**. The other arcade's games appear as cards, and clicking one plays it
+   straight from that computer. Addresses are remembered in that browser.
+
+The address can also be a full URL, like another arcade on GitHub Pages
+(`https://friend.github.io/`).
+
+**From the live HTTPS site.** Browsers are strict about secure pages reading plain-HTTP
+addresses. Chrome and Edge ask you to allow access to devices on your local network
+(answer Allow). Firefox and Safari block it, so use the **Open** button on that arcade,
+or browse to `http://<address>/` directly. Opening the launcher that `npm run serve`
+prints avoids the question entirely.
+
+Only connect to arcades you trust: their cards can link to any website. The launcher
+shows their titles and descriptions as plain text and ignores anything that isn't a
+normal web link.
 
 ## Adding a game
 

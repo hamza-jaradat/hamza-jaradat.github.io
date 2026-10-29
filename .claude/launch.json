@@ -18,6 +18,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--outDir", "dist", "--base", "/arcade/", "--port", "4174", "--strictPort"],
       "port": 4174
+    },
+    {
+      "name": "arcade-serve-local",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/serve.mjs", "--host", "127.0.0.1", "--port", "8080"],
+      "port": 8080
     }
   ]
 }
