@@ -1,11 +1,14 @@
-// Instanced rendering for the pickups and hazards inside the visible window.
+// Instanced rendering for the pickups, holds and hazards inside the visible window.
 import * as THREE from 'three';
-import { KIND, STATE, laneX } from '../config.js';
+import { HOLD, KIND, STATE, laneX } from '../config.js';
 import { smoothstep } from '../util.js';
 import { FOG_GLSL, HAZARD_RGB, POWER_RGB, TIER_RGB } from './shaderLib.js';
 
 const VIEW_DIST = 500;
 const HOVER = 0.62;
+const RIBBON_HEIGHT = 0.42;
+const RIBBON_WIDTH = 0.36;
+const RIBBON_STEP = 2; // world units per ribbon segment
 
 export class NotesView {
   constructor(uniforms) {
@@ -28,10 +31,14 @@ export class NotesView {
       blending: THREE.AdditiveBlending,
     });
 
+    this.ribbonMat = ribbonMaterial(uniforms);
     this.notes = this.instanced(gemGeo, this.gemMat, 600, true);
     this.powers = this.instanced(powerGeo, this.gemMat, 48, true);
     this.rings = this.instanced(ringGeo, this.ringMat, 48, false);
     this.hazards = this.instanced(hazardGeo, this.hazardMat, 256, false);
+    this.ribbons = this.instanced(new THREE.BoxGeometry(1, 1, 1), this.ribbonMat, 1600, true);
+    this.pa = new THREE.Vector3();
+    this.pb = new THREE.Vector3();
   }
 
   instanced(geo, mat, count, colored) {
@@ -56,15 +63,19 @@ export class NotesView {
     let nNote = 0;
     let nPower = 0;
     let nHazard = 0;
+    this.nRibbon = 0;
     if (chart) {
       const objs = chart.objects;
       const F = this.frame;
       const sNow = track.distAt(t);
-      while (this.cursor < objs.length && objs[this.cursor].t < t - 0.6) this.cursor++;
+      const gone = (o) => o.t + o.hold < t - 0.6;
+      while (this.cursor < objs.length && gone(objs[this.cursor])) this.cursor++;
       for (let i = this.cursor; i < objs.length; i++) {
         const o = objs[i];
         const ahead = track.distAt(o.t) - sNow;
         if (ahead > VIEW_DIST) break;
+        if (gone(o)) continue;
+        if (o.hold > 0) this.ribbon(track, o, t, origin, sNow, beat);
         const st = o.state;
         if (st === STATE.COLLECTED || st === STATE.HIT || st === STATE.SMASHED) continue;
         const dt = o.t - t;
@@ -108,9 +119,49 @@ export class NotesView {
     this.powers.count = nPower;
     this.rings.count = nPower;
     this.hazards.count = nHazard;
-    for (const mesh of [this.notes, this.powers, this.rings, this.hazards]) {
+    this.ribbons.count = this.nRibbon;
+    for (const mesh of [this.notes, this.powers, this.rings, this.hazards, this.ribbons]) {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  // A hold's beam along its lane, from its head (or the ship, once held) to its end:
+  // bright while held, faint once let go.
+  ribbon(track, o, t, origin, sNow, beat) {
+    const hs = o.holdState;
+    if (hs === HOLD.DONE) return;
+    const t1 = o.t + o.hold;
+    let ta = hs === HOLD.HOLDING ? Math.max(o.t, t) : o.t;
+    if (t1 <= ta) return;
+    const c = o.kind === KIND.POWER ? POWER_RGB : TIER_RGB[o.tier];
+    const glow = hs === HOLD.HOLDING ? 1.5 + 0.6 * beat : hs === HOLD.DROPPED ? 0.12 : 0.55;
+    const x = laneX(o.lane);
+    const { R, U } = this.frame;
+    const mesh = this.ribbons;
+    const max = mesh.instanceMatrix.count;
+    const pa = track.pointAt(ta, x, RIBBON_HEIGHT, this.pa);
+    while (ta < t1 && this.nRibbon < max) {
+      const tb = Math.min(t1, ta + RIBBON_STEP / Math.max(10, track.speedAt(ta)));
+      const pb = track.pointAt(tb, x, RIBBON_HEIGHT, this.pb);
+      track.frameAt((ta + tb) / 2, this.frame);
+      const dx = pb.x - pa.x;
+      const dy = pb.y - pa.y;
+      const dz = pb.z - pa.z;
+      const w = RIBBON_WIDTH;
+      const h = 0.05;
+      this.m.set(
+        R.x * w, U.x * h, dx, (pa.x + pb.x) / 2 - origin.x,
+        R.y * w, U.y * h, dy, (pa.y + pb.y) / 2 - origin.y,
+        R.z * w, U.z * h, dz, (pa.z + pb.z) / 2 - origin.z,
+        0, 0, 0, 1,
+      );
+      mesh.setMatrixAt(this.nRibbon, this.m);
+      mesh.instanceColor.setXYZ(this.nRibbon, c[0] * glow, c[1] * glow, c[2] * glow);
+      this.nRibbon++;
+      pa.copy(pb);
+      ta = tb;
+      if (track.distAt(ta) - sNow > VIEW_DIST) break;
     }
   }
 }
@@ -168,6 +219,37 @@ function gemMaterial(U) {
         vec3 col = vColor * (0.45 + 1.1 * rim + 0.25 * uBeat) + vec3(pow(ndv, 10.0) * 0.3);
         col = mix(col, uFogColor, fogFactor(-vViewPos.z));
         gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+}
+
+// Additive beam that fades into the distance (rather than into the fog color).
+function ribbonMaterial(U) {
+  return new THREE.ShaderMaterial({
+    uniforms: { uFogColor: U.uFogColor, uFogDensity: U.uFogDensity },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: /* glsl */ `
+      varying vec3 vColor;
+      varying float vDepth;
+      varying vec2 vUv;
+      void main() {
+        vColor = instanceColor;
+        vUv = uv;
+        vec4 mv = modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        vDepth = -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vColor;
+      varying float vDepth;
+      varying vec2 vUv;
+      ${FOG_GLSL}
+      void main() {
+        gl_FragColor = vec4(vColor * (1.0 - fogFactor(vDepth)), 1.0);
       }
     `,
   });

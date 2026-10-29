@@ -168,6 +168,12 @@ export class AudioEngine {
     this._tone('triangle', 1318.5, 2637, 0.4, 0.07, 0.04);
   }
 
+  holdDone() {
+    if (!this.sfxOn) return;
+    this._tone('sine', 1318.5, 1975.5, 0.18, 0.07);
+    this._tone('triangle', 1975.5, 2637, 0.22, 0.04, 0.06);
+  }
+
   hit() {
     if (!this.sfxOn) return;
     this._tone('sawtooth', 140, 38, 0.35, 0.22);

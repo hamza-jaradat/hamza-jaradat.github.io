@@ -84,13 +84,14 @@ export class PostFX {
     this.final.uniforms.uFlashColor.value.setRGB(color[0], color[1], color[2]);
   }
 
-  update(dt, { beat = 0, overdrive = 0, intensity = 0 } = {}) {
+  update(dt, { beat = 0, overdrive = 0, intensity = 0, tension = 0 } = {}) {
     this.flash = Math.max(0, this.flash - dt * 2.2);
     this.aberration = Math.max(0, this.aberration - dt * 0.09);
     const u = this.final.uniforms;
     u.uFlash.value = this.flash;
-    u.uAberration.value = this.aberration + 0.0015 + beat * 0.003 + overdrive * 0.004;
-    this.bloom.strength = this.baseBloom * (0.9 - 0.15 * intensity + 0.3 * beat + 0.2 * overdrive);
+    u.uAberration.value = this.aberration + 0.0015 + beat * 0.003 + overdrive * 0.004 + tension * 0.004;
+    u.uVignette.value = 0.9 + 0.35 * tension;
+    this.bloom.strength = this.baseBloom * (0.9 - 0.15 * intensity + 0.3 * beat + 0.2 * overdrive + 0.25 * tension);
   }
 
   render(dt) {

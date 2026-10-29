@@ -1,4 +1,5 @@
 // Main-thread side of the analysis: downmix, decimate, and hand off to a worker.
+import { ONSET_FIELDS } from './analysis/onsets.js';
 
 export function analyzeBuffer(audioBuffer, onProgress) {
   const { samples, sampleRate } = prepareSamples(audioBuffer);
@@ -43,8 +44,9 @@ function prepareSamples(buffer) {
 
 function unpack(r, duration) {
   const onsets = [];
-  for (let i = 0; i < r.onsets.length; i += 3) {
-    onsets.push({ t: r.onsets[i], s: r.onsets[i + 1], b: r.onsets[i + 2] });
+  const n = ONSET_FIELDS;
+  for (let i = 0; i < r.onsets.length; i += n) {
+    onsets.push({ t: r.onsets[i], s: r.onsets[i + 1], b: r.onsets[i + 2], pitch: r.onsets[i + 3], sustain: r.onsets[i + 4] });
   }
   return { ...r, onsets, duration };
 }

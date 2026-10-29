@@ -131,11 +131,13 @@ export class UI {
 
   showReady({ title, features, chart, best }) {
     this.$('ready-title').textContent = title;
-    drawGraph(this.$('ready-graph'), features.intensity);
+    drawGraph(this.$('ready-graph'), features, { labels: true });
     const stats = [
       [formatTime(features.duration), 'Length'],
       [Math.round(features.bpm), 'BPM'],
+      [features.drops?.length ?? 0, features.drops?.length === 1 ? 'Drop' : 'Drops'],
       [chart.notesTotal, 'Notes'],
+      [chart.holdsTotal ?? 0, 'Holds'],
       [chart.hazardsTotal, 'Hazards'],
     ];
     this.$('ready-stats').innerHTML = stats.map(([v, l]) => `<div class="stat"><b>${v}</b><span>${l}</span></div>`).join('');
@@ -146,11 +148,12 @@ export class UI {
 
   setHudSong(title, features) {
     this.el.title.textContent = title;
-    drawGraph(this.$('hud-graph'), features.intensity);
+    drawGraph(this.$('hud-graph'), features);
     this.duration = features.duration;
     this.last = {};
     this.shownScore = 0;
     this.el.toasts.replaceChildren();
+    this.toastUntil = 0;
     this.hud.classList.remove('hit');
   }
 
@@ -214,7 +217,12 @@ export class UI {
     }
   }
 
-  toast(text, kind = '') {
+  // A toast replaces the one on screen unless that one matters more and is still fresh.
+  toast(text, kind = '', priority = 0) {
+    const now = performance.now();
+    if (priority < this.toastPriority && now < this.toastUntil) return;
+    this.toastPriority = priority;
+    this.toastUntil = now + 700;
     const el = document.createElement('div');
     el.className = `toast ${kind}`;
     el.textContent = text;
@@ -231,7 +239,7 @@ export class UI {
   overdriveReady() {
     if (this.last.readyToasted) return;
     this.last.readyToasted = true;
-    this.toast('OVERDRIVE READY', 'gold');
+    this.toast('OVERDRIVE READY', 'gold', 1);
   }
 
   overdriveUsed() {
@@ -253,18 +261,38 @@ export class UI {
       ['Max combo', r.maxCombo],
       ['Hazards hit', `${r.hits} / ${r.hazards}`],
       ['Smashed', r.smashed],
-      ['Clean run', r.hits === 0 ? 'Yes' : 'No'],
+      r.holds ? ['Holds', `${r.holdsDone} / ${r.holds}`] : ['Clean run', r.hits === 0 ? 'Yes' : 'No'],
     ];
     this.$('res-stats').innerHTML = stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   }
 }
 
-// Intensity overview drawn as heat-colored columns.
-function drawGraph(canvas, values) {
+// Song overview: intensity as heat-colored columns over the song's sections (lettered
+// by which ones repeat), with build-ups shaded and drops marked.
+function drawGraph(canvas, features, { labels = false } = {}) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;
+  const { intensity: values, duration, sections = [], builds = [], drops = [] } = features;
+  const xOf = (t) => (t / duration) * w;
   ctx.clearRect(0, 0, w, h);
+
+  sections.forEach((s, i) => {
+    if (i % 2) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.fillRect(xOf(s.start), 0, xOf(s.end) - xOf(s.start), h);
+    }
+  });
+  for (const b of builds) {
+    const x0 = xOf(b.start);
+    const x1 = xOf(b.end);
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, 'rgba(155, 102, 255, 0)');
+    g.addColorStop(1, 'rgba(155, 102, 255, 0.3)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, 0, x1 - x0, h);
+  }
+
   const cols = Math.max(1, Math.floor(w / 4));
   const per = values.length / cols;
   for (let c = 0; c < cols; c++) {
@@ -275,5 +303,31 @@ function drawGraph(canvas, values) {
     const bh = Math.max(2, v * (h - 4));
     ctx.fillStyle = heatCSS(v, 0.92);
     ctx.fillRect(c * 4, h - bh, 3, bh);
+  }
+
+  const mark = Math.max(3, Math.round(h / 16));
+  for (const d of drops) {
+    const x = Math.round(xOf(d)) + 0.5;
+    ctx.strokeStyle = 'rgba(255, 214, 110, 0.85)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd66e';
+    ctx.beginPath();
+    ctx.moveTo(x - mark, 0);
+    ctx.lineTo(x + mark, 0);
+    ctx.lineTo(x, mark * 1.6);
+    ctx.fill();
+  }
+
+  if (labels) {
+    ctx.font = '700 12px Rajdhani, sans-serif';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for (const s of sections) if (xOf(s.end) - xOf(s.start) > 16) ctx.fillText(s.label, xOf(s.start) + 5, h - 6);
+    ctx.shadowBlur = 0;
   }
 }

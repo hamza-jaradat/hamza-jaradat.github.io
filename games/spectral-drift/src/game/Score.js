@@ -2,6 +2,7 @@ import { KIND, OVERDRIVE_DURATION } from '../config.js';
 
 export const MAX_MULTIPLIER = 8;
 const COMBO_PER_STEP = 10;
+const HOLD_RATE = 30; // points per second held, before the multiplier
 
 export class Score {
   constructor(chart) {
@@ -20,6 +21,8 @@ export class Score {
     this.smashed = 0;
     this.charge = 0;
     this.overdrive = 0; // seconds remaining
+    this.holdsDone = 0;
+    this.holdCarry = 0; // fractional hold points not yet added to the score
   }
 
   get overdriveActive() {
@@ -34,6 +37,22 @@ export class Score {
     this.score += points;
     this.collected++;
     if (!this.overdriveActive) this.charge = Math.min(1, this.charge + (obj.kind === KIND.POWER ? 0.15 : 0.025));
+    return points;
+  }
+
+  // Points for every moment a hold is kept; letting go early costs nothing but those points.
+  hold(seconds) {
+    this.holdCarry += HOLD_RATE * seconds * this.multiplier * (this.overdriveActive ? 2 : 1);
+    const whole = Math.floor(this.holdCarry);
+    this.score += whole;
+    this.holdCarry -= whole;
+  }
+
+  holdComplete(obj) {
+    this.holdsDone++;
+    const points = Math.round(obj.hold * HOLD_RATE) * this.multiplier * (this.overdriveActive ? 2 : 1);
+    this.score += points;
+    if (!this.overdriveActive) this.charge = Math.min(1, this.charge + 0.02);
     return points;
   }
 

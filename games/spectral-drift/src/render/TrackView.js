@@ -264,7 +264,31 @@ export class TrackView {
   }
 }
 
+// Arches mark the music's phrasing: every drop, every bar of a drop's first phrase, every
+// other bar in the song's peaks, every fourth in grooves, and the last bars of build-ups.
 function pickGateTimes(features) {
+  const { downbeats, sections = [], drops = [], builds = [] } = features;
+  if (!downbeats || downbeats.length < 8 || !sections.length) return gatesOnKicks(features);
+  const times = [...drops];
+  let s = 0;
+  let barInSection = 0;
+  for (const t of downbeats) {
+    while (s < sections.length - 1 && sections[s + 1].start <= t + 0.05) {
+      s++;
+      barInSection = 0;
+    }
+    const sec = sections[s];
+    const every = sec.drop && barInSection < 8 ? 1 : sec.kind === 'peak' ? 2 : sec.kind === 'groove' ? 4 : 0;
+    const build = builds.some((b) => t >= b.end - 4 * (b.end - b.start) / 8 && t < b.end);
+    if (build || (every && barInSection % every === 0)) times.push(t);
+    barInSection++;
+  }
+  times.sort((a, b) => a - b);
+  return times.filter((t, i) => i === 0 || t - times[i - 1] > 0.8);
+}
+
+// Without a bar grid: arches on strong kicks in the intense parts.
+function gatesOnKicks(features) {
   const times = [];
   let last = -10;
   for (const o of features.onsets) {

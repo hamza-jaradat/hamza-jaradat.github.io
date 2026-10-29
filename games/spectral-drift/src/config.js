@@ -15,11 +15,15 @@ export const laneX = (lane) => (lane - (LANES - 1) / 2) * LANE_WIDTH;
 
 export const KIND = { NOTE: 0, POWER: 1, HAZARD: 2 };
 export const STATE = { PENDING: 0, COLLECTED: 1, MISSED: 2, HIT: 3, PASSED: 4, SMASHED: 5 };
+export const HOLD = { WAITING: 0, HOLDING: 1, DONE: 2, DROPPED: 3 };
 
+// perBar: notes per 4-beat bar from the calmest to the most intense bars.
+// maxLevel: the finest beat division charted (0 downbeats, 1 beats, 2 eighths,
+// 3 sixteenths and triplets, 4 off the grid); a strong accent may go one finer.
 export const DIFFICULTIES = {
-  chill: { id: 'chill', label: 'Chill', density: 0.45, minGap: 0.24, hazard: 0.05, speed: 0.9 },
-  normal: { id: 'normal', label: 'Normal', density: 0.72, minGap: 0.16, hazard: 0.11, speed: 1.0 },
-  intense: { id: 'intense', label: 'Intense', density: 1.0, minGap: 0.11, hazard: 0.18, speed: 1.12 },
+  chill: { id: 'chill', label: 'Chill', perBar: [1.5, 4], maxLevel: 1, minGap: 0.24, holdMin: 0.5, hazard: 0.05, speed: 0.9 },
+  normal: { id: 'normal', label: 'Normal', perBar: [2.5, 7], maxLevel: 2, minGap: 0.16, holdMin: 0.45, hazard: 0.11, speed: 1.0 },
+  intense: { id: 'intense', label: 'Intense', perBar: [3.5, 12], maxLevel: 4, minGap: 0.11, holdMin: 0.4, hazard: 0.18, speed: 1.12 },
 };
 
 export const OVERDRIVE_DURATION = 8;

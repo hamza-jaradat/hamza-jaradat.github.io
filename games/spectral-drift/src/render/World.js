@@ -117,6 +117,13 @@ export class World {
     this.overdrive = 0;
   }
 
+  // A drop: a white flash, a jolt, and the view punches wide.
+  drop() {
+    this.postfx.hit([1.0, 0.95, 0.9], 1.1);
+    this.rig.addShake(0.35);
+    this.rig.punch(1);
+  }
+
   // Particle burst at lateral position x on the road at time t.
   burst(t, x, rgb, count, spread = 7, size = 0.35) {
     const track = this.track;
@@ -155,7 +162,8 @@ export class World {
 
     const v = track.speedAt(s.t);
     const speedNorm = Math.min(1, Math.max(0, (v - track.speedMin) / (track.speedMax - track.speedMin)));
-    this.rig.update(track, s.t, s.shipX, dt, { speedNorm, overdrive: od, kick: s.kick });
+    const tension = s.tension ?? 0;
+    this.rig.update(track, s.t, s.shipX, dt, { speedNorm, overdrive: od, kick: s.kick, tension });
     U.uPointScale.value = (window.innerHeight * this.pixelRatio) / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
 
     track.frameAt(s.t, this.frame);
@@ -164,7 +172,7 @@ export class World {
       this.skySnap = false;
     }
     this.sky.update(this.camera, this.frame.T, dt);
-    this.postfx.update(dt, { beat: s.beat, overdrive: od, intensity: s.intensity });
+    this.postfx.update(dt, { beat: s.beat, overdrive: od, intensity: s.intensity, tension });
   }
 
   render(dt) {

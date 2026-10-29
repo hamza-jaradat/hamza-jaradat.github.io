@@ -17,19 +17,26 @@ export class CameraRig {
     this.lateral = 0;
     this.shake = 0;
     this.fov = camera.fov;
+    this.fovKick = 0;
     this.snap = true;
   }
 
   reset() {
     this.snap = true;
     this.shake = 0;
+    this.fovKick = 0;
   }
 
   addShake(amount) {
     this.shake = Math.min(1, this.shake + amount);
   }
 
-  update(track, t, shipX, dt, { speedNorm = 0, overdrive = 0, kick = 0 } = {}) {
+  // A sudden widening of the view that springs back (drops).
+  punch(amount = 1) {
+    this.fovKick = Math.max(this.fovKick, amount);
+  }
+
+  update(track, t, shipX, dt, { speedNorm = 0, overdrive = 0, kick = 0, tension = 0 } = {}) {
     const v = Math.max(1, track.speedAt(t));
     const tc = t - BACK / v;
     const ta = t + AHEAD / v;
@@ -46,7 +53,7 @@ export class CameraRig {
     this.up.lerp(this.frame.U, damp(5, dt)).normalize();
 
     this.shake = Math.max(0, this.shake - dt * 2.2);
-    const s = this.shake * this.shake * 0.45 + kick * 0.035;
+    const s = this.shake * this.shake * 0.45 + kick * 0.035 + tension * tension * 0.03;
     if (s > 0.0005) {
       this.pos.x += (Math.random() - 0.5) * s;
       this.pos.y += (Math.random() - 0.5) * s;
@@ -58,10 +65,13 @@ export class CameraRig {
     cam.up.copy(this.up);
     cam.lookAt(this.look);
 
-    const targetFov = 64 + speedNorm * 14 + overdrive * 6;
+    // Speed widens the view; a build-up narrows it; a drop punches it wide for a moment.
+    const targetFov = 64 + speedNorm * 14 + overdrive * 6 - tension * 7;
     this.fov += (targetFov - this.fov) * damp(3, dt);
-    if (Math.abs(cam.fov - this.fov) > 0.01) {
-      cam.fov = this.fov;
+    this.fovKick = Math.max(0, this.fovKick - dt * 1.2);
+    const fov = this.fov + this.fovKick * this.fovKick * 16;
+    if (Math.abs(cam.fov - fov) > 0.01) {
+      cam.fov = fov;
       cam.updateProjectionMatrix();
     }
   }

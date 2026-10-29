@@ -34,13 +34,15 @@ export class Track {
     const yawRate = new Float32Array(n);
     const ph = [rng(), rng(), rng(), rng()].map((v) => v * TAU);
     const turnSign = rng() < 0.5 ? -1 : 1;
+    const moment = dropShape(features);
     for (let i = 0; i < n; i++) {
       const t = this.tStart + i * dt;
       const inSong = smoothstep(-1.5, 1.0, t) * (1 - smoothstep(duration, duration + 4, t));
       const il = iSlope[i];
-      speed[i] = (V_MIN + (V_MAX - V_MIN) * Math.pow(iSpeed[i], 1.25)) * speedMul;
+      const m = moment(t);
+      speed[i] = (V_MIN + (V_MAX - V_MIN) * Math.pow(iSpeed[i], 1.25)) * speedMul * (1 - 0.12 * m.brake + 0.22 * m.surge);
       const wave = Math.sin((TAU * t) / (beat * 8) + ph[3]) * 0.07 * smoothstep(0.45, 0.9, il);
-      pitch[i] = (0.09 - 0.42 * il + wave) * inSong;
+      pitch[i] = (0.09 - 0.42 * il + wave + 0.18 * m.climb - 0.35 * m.dive) * inSong;
       const bend =
         0.55 * Math.sin((TAU * t) / 23 + ph[0]) +
         0.3 * Math.sin((TAU * t) / 13.7 + ph[1]) +
@@ -162,6 +164,29 @@ export class Track {
     lerp3(this.up, i, a, frame.U).normalize();
     return frame;
   }
+}
+
+// The road's big moments: each build-up climbs towards its drop and eases off the speed
+// near the top; each drop crests, dives and surges forward.
+function dropShape({ drops = [], builds = [] }) {
+  return (t) => {
+    let climb = 0;
+    let brake = 0;
+    let dive = 0;
+    let surge = 0;
+    for (const b of builds) {
+      if (t < b.start || t > b.end + 0.4) continue;
+      climb = Math.max(climb, t < b.end ? smoothstep(b.start, b.end, t) : 1 - smoothstep(b.end, b.end + 0.4, t));
+      if (t < b.end) brake = Math.max(brake, smoothstep(b.end - 0.3 * (b.end - b.start), b.end, t));
+    }
+    for (const d of drops) {
+      const x = t - d;
+      if (x < -0.5 || x > 6) continue;
+      dive = Math.max(dive, Math.exp(-(((x - 0.5) / 0.7) ** 2)));
+      if (x >= 0) surge = Math.max(surge, Math.exp(-x / 1.6));
+    }
+    return { climb, brake, dive, surge };
+  };
 }
 
 function lerp3(arr, i, a, out) {

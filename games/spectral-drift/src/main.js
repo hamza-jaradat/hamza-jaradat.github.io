@@ -252,6 +252,8 @@ class App {
       hits: s.hits,
       hazards: this.chart.hazardsTotal,
       smashed: s.smashed,
+      holdsDone: s.holdsDone,
+      holds: this.chart.holdsTotal,
     });
     this.setState('results');
   }
