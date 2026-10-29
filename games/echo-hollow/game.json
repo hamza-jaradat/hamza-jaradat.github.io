@@ -1,0 +1,9 @@
+{
+  "title": "Echo Hollow",
+  "description": "Explore pitch-black caves by sound. Every ping lights up the walls, and wakes the things that listen.",
+  "tags": ["stealth", "exploration", "2D"],
+  "controls": "Keyboard, mouse, touch or gamepad",
+  "cover": "cover.jpg",
+  "accent": "#5fe1ff",
+  "added": "2026-10-29"
+}

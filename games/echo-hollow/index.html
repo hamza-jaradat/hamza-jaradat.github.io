@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Explore pitch-black caves by sound, and stay unheard." />
+    <meta name="theme-color" content="#020207" />
+    <title>Echo Hollow</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <div class="hud" id="hud" hidden>
+      <div class="hud-group">
+        <span id="hud-level">Cavern 1</span>
+        <span class="hud-spores"><i class="spore-dot" aria-hidden="true"></i><span id="hud-spores">0 / 0</span></span>
+      </div>
+      <div class="hud-group">
+        <span class="hud-lives" id="hud-lives"></span>
+        <span class="hud-score" id="hud-score">0</span>
+      </div>
+    </div>
+    <button class="ping-btn" id="ping-btn" type="button" aria-label="Ping" hidden></button>
+
+    <section class="overlay" id="screen-title">
+      <div class="card">
+        <a class="hub-link" id="hub-link" hidden>← All games</a>
+        <h1>Echo Hollow</h1>
+        <p class="lede">You can only see what you hear.</p>
+        <ul class="how">
+          <li><b>Ping</b> to light up the cave: <kbd>Space</kbd>, right-click, or the round button on touch screens.</li>
+          <li><b>Drift</b> with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or the arrow keys, or hold the mouse button.</li>
+          <li>Gather every <i class="spore-dot" aria-hidden="true"></i> spore, then reach the gate.</li>
+          <li><b class="danger">Listeners</b> are blind, but they hear every ping. Ping, then move.</li>
+        </ul>
+        <button class="btn primary" id="btn-start" type="button">Enter the hollow</button>
+        <p class="best" id="title-best"></p>
+      </div>
+    </section>
+
+    <section class="overlay" id="screen-level" hidden>
+      <div class="card">
+        <p class="eyebrow" id="level-eyebrow">Cavern 1</p>
+        <h2>Cavern cleared</h2>
+        <dl class="stats" id="level-stats"></dl>
+        <p class="total"><span>Score</span> <b id="level-total">0</b></p>
+        <p class="healed" id="level-healed" hidden>You found a lost light: one life back.</p>
+        <button class="btn primary" id="btn-next" type="button">Go deeper</button>
+      </div>
+    </section>
+
+    <section class="overlay" id="screen-over" hidden>
+      <div class="card">
+        <p class="eyebrow" id="over-eyebrow"></p>
+        <h2>The hollow keeps you</h2>
+        <p class="final" id="over-score">0</p>
+        <p class="best" id="over-best"></p>
+        <div class="actions">
+          <button class="btn primary" id="btn-retry" type="button">Try again</button>
+          <button class="btn" id="btn-title" type="button">Title</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="overlay" id="screen-pause" hidden>
+      <div class="card small">
+        <h2>Paused</h2>
+        <button class="btn primary" id="btn-resume" type="button">Resume</button>
+        <button class="btn" id="btn-quit" type="button">Quit to title</button>
+        <p class="hint"><kbd>M</kbd> mutes sound · <kbd>Esc</kbd> resumes</p>
+      </div>
+    </section>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
