@@ -1,0 +1,48 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #07060f;
+  color: #ece9ff;
+  font-family: system-ui, 'Segoe UI', sans-serif;
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: none;
+}
+
+.hud {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+}
+
+.hub-link {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(170, 150, 255, 0.3);
+  border-radius: 10px;
+  background: rgba(13, 9, 32, 0.6);
+  color: inherit;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.hub-link:hover {
+  border-color: #46d9ff;
+}
+
+[hidden] {
+  display: none !important;
+}

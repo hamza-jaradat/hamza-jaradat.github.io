@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "spectral-drift",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "games/spectral-drift", "--port", "5173", "--strictPort"],
+      "port": 5173
+    },
+    {
+      "name": "arcade",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--outDir", "dist", "--port", "4173", "--strictPort"],
+      "port": 4173
+    },
+    {
+      "name": "arcade-subpath",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--outDir", "dist", "--base", "/arcade/", "--port", "4174", "--strictPort"],
+      "port": 4174
+    }
+  ]
+}

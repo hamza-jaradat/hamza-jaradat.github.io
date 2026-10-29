@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Ride a neon road built from your own music." />
+    <meta name="theme-color" content="#05030c" />
+    <title>Spectral Drift</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="ui">
+      <section class="screen" id="screen-menu">
+        <div class="panel menu">
+          <a class="hub-link" id="hub-link" hidden>← All games</a>
+          <h1 class="logo"><span class="logo-a">SPECTRAL</span><span class="logo-b">DRIFT</span></h1>
+          <p class="tagline">Your music builds the road. Ride it.</p>
+
+          <label class="dropzone" id="dropzone">
+            <input type="file" id="file-input" accept="audio/*,.mp3,.ogg,.oga,.wav,.flac,.m4a,.aac,.opus,.webm" />
+            <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+            <span class="dz-title">Drop a song here</span>
+            <span class="dz-sub">or click to browse · MP3 · OGG · WAV · FLAC · M4A</span>
+          </label>
+
+          <button class="btn btn-ghost" id="btn-demo" type="button">Play the built-in demo track</button>
+
+          <div class="row">
+            <span class="label">Difficulty</span>
+            <div class="segmented" data-setting="difficulty" role="radiogroup" aria-label="Difficulty">
+              <button type="button" data-value="chill">Chill</button>
+              <button type="button" data-value="normal">Normal</button>
+              <button type="button" data-value="intense">Intense</button>
+            </div>
+          </div>
+
+          <details class="settings">
+            <summary>Settings</summary>
+            <label class="slider"><span>Music volume</span><input type="range" id="set-music" min="0" max="100" /></label>
+            <label class="slider"><span>Effects volume</span><input type="range" id="set-sfx" min="0" max="100" /></label>
+            <label class="slider">
+              <span>Audio offset <em id="set-offset-val">0 ms</em></span>
+              <input type="range" id="set-offset" min="-200" max="200" step="5" />
+            </label>
+            <label class="toggle"><input type="checkbox" id="set-quality" /> <span>High quality (bloom, full resolution)</span></label>
+          </details>
+
+          <p class="controls">
+            Steer <kbd>Mouse</kbd> or <kbd>A</kbd><kbd>D</kbd> <kbd>←</kbd><kbd>→</kbd> · Overdrive <kbd>Space</kbd> / right-click · Pause <kbd>Esc</kbd>
+          </p>
+          <p class="error" id="menu-error" role="alert" hidden></p>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-loading" hidden>
+        <div class="panel loading">
+          <div class="eyebrow">Preparing</div>
+          <div class="song-title" id="load-name"></div>
+          <div class="stage" id="load-stage"></div>
+          <div class="bar"><div class="bar-fill" id="load-bar"></div></div>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-ready" hidden>
+        <div class="panel ready">
+          <div class="eyebrow">Road ready</div>
+          <h2 class="song-title" id="ready-title"></h2>
+          <canvas class="graph" id="ready-graph" width="640" height="96"></canvas>
+          <div class="stats" id="ready-stats"></div>
+          <div class="row">
+            <span class="label">Difficulty</span>
+            <div class="segmented" data-setting="difficulty" role="radiogroup" aria-label="Difficulty">
+              <button type="button" data-value="chill">Chill</button>
+              <button type="button" data-value="normal">Normal</button>
+              <button type="button" data-value="intense">Intense</button>
+            </div>
+          </div>
+          <div class="best" id="ready-best"></div>
+          <div class="actions">
+            <button class="btn btn-primary" id="btn-start" type="button">Start <kbd>Enter</kbd></button>
+            <button class="btn btn-ghost" id="btn-back" type="button">Choose another song</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="hud" hidden>
+        <div class="hud-top">
+          <div class="hud-song">
+            <div class="hud-title" id="hud-title"></div>
+            <div class="hud-time" id="hud-time"></div>
+          </div>
+          <div class="hud-progress">
+            <canvas id="hud-graph" width="420" height="40"></canvas>
+            <div class="hud-played" id="hud-played"></div>
+          </div>
+          <div class="hud-score">
+            <div class="score" id="hud-score">0</div>
+            <div class="mult" id="hud-mult">x1</div>
+          </div>
+        </div>
+        <div class="hud-bottom">
+          <div class="combo" id="hud-combo"><span class="combo-n" id="hud-combo-n">0</span><span class="combo-l">combo</span></div>
+          <button class="od" id="hud-od" type="button" aria-label="Activate overdrive">
+            <span class="od-fill" id="hud-od-fill"></span>
+            <span class="od-label" id="hud-od-label">Overdrive</span>
+          </button>
+        </div>
+        <div class="toasts" id="toasts"></div>
+        <div class="countdown" id="countdown"></div>
+        <button class="pause-btn" id="btn-pause" type="button" aria-label="Pause">❚❚</button>
+      </section>
+
+      <section class="screen" id="screen-pause" hidden>
+        <div class="panel small">
+          <h2>Paused</h2>
+          <button class="btn btn-primary" id="btn-resume" type="button">Resume</button>
+          <button class="btn" id="btn-restart" type="button">Restart</button>
+          <button class="btn btn-ghost" id="btn-quit" type="button">Quit to menu</button>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-results" hidden>
+        <div class="panel results">
+          <div class="eyebrow" id="res-song"></div>
+          <div class="grade" id="res-grade"></div>
+          <div class="res-score" id="res-score">0</div>
+          <div class="res-best" id="res-best"></div>
+          <dl class="res-stats" id="res-stats"></dl>
+          <div class="actions">
+            <button class="btn btn-primary" id="btn-again" type="button">Ride again</button>
+            <button class="btn btn-ghost" id="btn-new" type="button">New song</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="drop-overlay" hidden><div>Drop to ride</div></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

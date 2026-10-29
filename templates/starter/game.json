@@ -1,0 +1,9 @@
+{
+  "title": "{{title}}",
+  "description": "Describe your game in a sentence.",
+  "tags": [],
+  "controls": "Mouse or arrow keys",
+  "accent": "#46d9ff",
+  "added": "{{date}}",
+  "hidden": false
+}

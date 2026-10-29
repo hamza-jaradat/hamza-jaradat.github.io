@@ -1,0 +1,9 @@
+{
+  "title": "Spectral Drift",
+  "description": "Ride a neon road built from your own music. Drop in any song and steer through its beats.",
+  "tags": ["rhythm", "music", "3D"],
+  "controls": "Mouse, keyboard, touch or gamepad",
+  "cover": "cover.jpg",
+  "accent": "#ff3fa4",
+  "added": "2026-10-29"
+}
