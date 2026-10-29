@@ -4,6 +4,7 @@
 //   dist/covers/<slug>.<ext> cover images named in each game.json
 //   dist/games.json          the game list as data
 import { execSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,6 +35,10 @@ function readJSON(file, fallback) {
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+
+// Short content hash, used as ?v= so browsers drop cached copies whenever a file changes
+// (GitHub Pages lets browsers cache files for 10 minutes).
+const fingerprint = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex').slice(0, 8);
 
 // Lets a game show an "All games" link only when it is served from the hub.
 function addHubMeta(indexFile) {
@@ -79,6 +84,7 @@ function buildGame(slug) {
     cover = `covers/${slug}${path.extname(src).toLowerCase()}`;
     fs.mkdirSync(path.join(out, 'covers'), { recursive: true });
     fs.copyFileSync(src, path.join(out, cover));
+    cover += `?v=${fingerprint(src)}`;
   }
 
   return {
@@ -204,9 +210,16 @@ const listed = games
   .sort((a, b) => b.added.localeCompare(a.added) || a.title.localeCompare(b.title));
 
 const count = `${listed.length} game${listed.length === 1 ? '' : 's'}`;
+// Version the launcher's own files, so a new page never runs with a stale cached script.
+const versioned = (match, attr, file) => {
+  const local = path.join(hubDir, file);
+  return fs.existsSync(local) ? `${attr}="${file}?v=${fingerprint(local)}"` : match;
+};
+
 // Replacer functions, so a "$" in a title or description is kept literally.
 const page = fs
   .readFileSync(path.join(hubDir, 'index.html'), 'utf8')
+  .replace(/\b(href|src)="([^"#?:]+\.(?:css|js|svg))"/g, versioned)
   .replaceAll('{{title}}', () => esc(site.title))
   .replaceAll('{{tagline}}', () => esc(site.tagline))
   .replaceAll('{{count}}', () => count)
