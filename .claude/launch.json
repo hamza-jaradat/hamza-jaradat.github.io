@@ -8,6 +8,12 @@
       "port": 5173
     },
     {
+      "name": "echo-hollow",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "games/echo-hollow", "--port", "5174", "--strictPort"],
+      "port": 5174
+    },
+    {
       "name": "arcade",
       "runtimeExecutable": "node",
       "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview", "--outDir", "dist", "--port", "4173", "--strictPort"],
