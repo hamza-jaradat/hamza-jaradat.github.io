@@ -4,7 +4,7 @@
 import { clamp } from '../../util.js';
 import { chromaBetween } from './pitch.js';
 
-export function estimateTempo(env, fr) {
+export function estimateTempo(env, fr, p) {
   const n = env.length;
   let mean = 0;
   for (let i = 0; i < n; i++) mean += env[i];
@@ -25,7 +25,7 @@ export function estimateTempo(env, fr) {
   let bestLag = minLag;
   for (let lag = minLag; lag <= maxLag; lag++) {
     const bpm = (60 * fr) / lag;
-    const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 120) / 0.9, 2));
+    const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / p.tempoCenter) / p.tempoWidth, 2));
     if (ac[lag] * prior > best) {
       best = ac[lag] * prior;
       bestLag = lag;
@@ -40,7 +40,7 @@ export function estimateTempo(env, fr) {
 }
 
 // Beat frames. Returns an empty array if the song has no usable pulse.
-export function trackBeats(env, fr, bpm) {
+export function trackBeats(env, fr, bpm, p) {
   const n = env.length;
   const period = (60 * fr) / bpm;
 
@@ -68,7 +68,7 @@ export function trackBeats(env, fr, bpm) {
 
   const lo = Math.max(1, Math.round(period / 2));
   const hi = Math.round(2 * period);
-  const tightness = 300; // stiffer than librosa's 100, so sparse passages don't slip off-beat
+  const tightness = p.tightness; // librosa uses 100; stiffer keeps sparse passages on the beat
   const weight = new Float32Array(hi + 1);
   for (let d = lo; d <= hi; d++) weight[d] = -tightness * Math.pow(Math.log(d / period), 2);
   const cum = new Float32Array(n);
@@ -137,17 +137,17 @@ export function trackBeats(env, fr, bpm) {
   return Int32Array.from(beats.slice(start, end + 1));
 }
 
-// Most produced music sits on a perfectly steady pulse. If at least 70% of the tracked
-// beats agree on one (within 60 ms), return that pulse as an exact grid spanning the
-// music (from `first` to `last`), which also repairs stretches where the tracker slipped.
-// Returns null for music whose tempo really moves.
-export function steadyGrid(beats, first, last) {
+// Most produced music sits on a perfectly steady pulse. If enough of the tracked beats
+// agree on one (p.gridAgreement of them, within p.gridTolerance seconds), return that
+// pulse as an exact grid spanning the music (from `first` to `last`), which also repairs
+// stretches where the tracker slipped. Returns null for music whose tempo really moves.
+export function steadyGrid(beats, first, last, p) {
   const n = beats.length;
   if (n < 16) return null;
   // Beat times are quantised to analysis frames, so individual gaps are coarse; the
   // average over the whole run is a much better first guess at the period.
   const average = (beats[n - 1] - beats[0]) / (n - 1);
-  const TOL = 0.06;
+  const TOL = p.gridTolerance;
   const fit = (period) => {
     // Circular mean of the beat phases, refined once using only the beats that agree.
     let offset = circularOffset(beats, period, () => true);
@@ -161,7 +161,7 @@ export function steadyGrid(beats, first, last) {
     const candidate = fit(average * (1 + step * 0.0005));
     if (!best || candidate.count > best.count) best = candidate;
   }
-  if (best.count < 0.7 * n) return null;
+  if (best.count < p.gridAgreement * n) return null;
 
   // Least-squares line through the agreeing beats (beat number -> time).
   let sk = 0;
@@ -226,7 +226,7 @@ export function extendBeats(beats, first, last) {
 // A Viterbi pass over the beats: chord changes, kicks and a missing backbeat snare argue
 // for a downbeat; the bar position normally advances by one per beat, and only re-syncs
 // (at a cost) when the evidence keeps disagreeing, e.g. after a beat slip.
-export function barPositions(beatTimes, cueAt, pitch) {
+export function barPositions(beatTimes, cueAt, pitch, p) {
   const n = beatTimes.length;
   const positions = new Uint8Array(n);
   if (n < 8) return positions;
@@ -243,7 +243,7 @@ export function barPositions(beatTimes, cueAt, pitch) {
     let dot = 0;
     for (let p = 0; p < 12; p++) dot += before[p] * after[p];
     const cue = cueAt(beatTimes[i]);
-    emit[i] = 2 * (1 - dot) + 0.4 * cue.kick - 0.8 * cue.snare;
+    emit[i] = p.barChord * (1 - dot) + p.barKick * cue.kick - p.barSnare * cue.snare;
   }
   let m = 0;
   for (const v of emit) m += v;
@@ -253,7 +253,7 @@ export function barPositions(beatTimes, cueAt, pitch) {
   sd = Math.sqrt(sd / n) || 1;
   for (let i = 0; i < n; i++) emit[i] = (emit[i] - m) / sd;
 
-  const RESYNC = 5;
+  const RESYNC = p.barResync;
   const score = new Float32Array(n * 4);
   const from = new Int8Array(n * 4);
   for (let s = 0; s < 4; s++) score[s] = s === 0 ? emit[0] : 0;

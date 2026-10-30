@@ -31,7 +31,8 @@ your setup, adjust **Settings → Audio offset**.
 
 ## How it works
 
-- `src/audio/analysis.worker.js` runs the analysis stages in `src/audio/analysis/`:
+- `src/audio/analysis.worker.js` runs the analysis (`src/audio/analysis/analyze.js`) off
+  the main thread. Every tunable number is in `params.js`. The stages:
   - `spectrogram.js`, `hpss.js`: a 64-band spectrogram split into harmonic (tones) and
     percussive (hits) parts by median filtering.
   - `onsets.js`: spectral flux per layer (kick, snare, hats, tones) and peak picking that
@@ -52,4 +53,82 @@ your setup, adjust **Settings → Audio offset**.
   beat pulse and the drop and build-up cues.
 - `src/render/`: chunked road with spectrum towers and arches, instanced gems, ship and
   trails, sky with a spectrum-ringed sun, particles, bloom.
-- `src/audio/demoSong.worker.js`: a small software synth that composes the demo track.
+- `src/audio/demoSong.synth.js`: a small software synth that composes the demo track.
+
+## Measuring and tuning the analysis
+
+`bench/` scores the analysis against songs whose beats, bars, sections and drops are
+known, and can tune `params.js` to score better. It is a development tool; none of it
+ships with the game.
+
+### Score it
+
+```bash
+npm run bench -w games/spectral-drift
+```
+
+This analyzes every labeled song and prints one score per song and task, plus means:
+
+| Score | Measures |
+| --- | --- |
+| Beats | Beats found within 70 ms of a labeled beat (F-measure) |
+| Beats (any) | The same, if the beats were on the off-beat or at double or half tempo: tells a tempo or phase mistake from being lost |
+| Bars | Downbeats (first beat of each bar) within 70 ms |
+| Sections | Section boundaries within 3 s (and, for "tight", 0.5 s) |
+| Drops | Drops within 0.5 s, including no false ones |
+| Overall | A weighted mean of the above (beats count most) |
+
+Six built-in songs always run: the demo, whose layout the synth knows exactly, and
+synthetic tracks that each catch one mistake (a steady groove, beat-less pads, a tempo
+ramp, pads before the drums come in, a held melody). They show regressions, but they are
+not real music: add your own songs for scores that mean something.
+
+### Label your own songs
+
+1. Put audio files (MP3, WAV, FLAC, OGG, M4A…) in `bench/songs/` (it stays out of git),
+   or point `SONGS_DIR` at another folder.
+2. Run `npm run dev -w games/spectral-drift` and open
+   http://localhost:5173/bench/label.html.
+3. Pick a song, copy the analysis into your labels, then fix what it got wrong while
+   listening with clicks on your beats: shift or re-phase the beats, set where bars start,
+   mark sections and drops. Save writes `<song file>.labels.json` next to the audio.
+
+The page shows the analysis's scores against your labels as you go. Labels from the
+[Harmonix Set](https://github.com/urinieto/harmonixset) (`<song>.beats.txt`,
+`<song>.segments.txt`, named like the audio file) are read too. Decoding your songs for
+`npm run bench` needs [ffmpeg](https://ffmpeg.org/) on your PATH.
+
+### Import osu! beatmaps
+
+osu! mappers time every song's beat grid to the millisecond, and each beatmap ships with
+its song, so beatmaps are ready-made labels
+([Osu2MIR](https://arxiv.org/abs/2509.12667) studies them as a beat dataset):
+
+```bash
+npm run bench:osu -w games/spectral-drift -- "C:\path\to\beatmaps"
+```
+
+The source can be one `.osz` file, a folder of them, or an osu! `Songs` folder. Each map's
+song is copied into the songs folder with labels for its beats, bars (from its timing
+points) and highlights (its kiai sections, usually choruses and drops), covering the
+stretch the map plays. Maps whose tempo changes come less than 5 s apart are skipped:
+their grids chase a drifting live tempo and need checking by hand. Options:
+`--songs <dir>`, `--limit <n>`, `--force`.
+
+Kiai marks a song's high points, not all its sections, so it is scored as "Highlights"
+(how many of them start at a section boundary or drop the analysis found), and drops still
+need labeling by ear. If the benchmark reports that the beats of imported songs sit early
+or late by the same amount, the offset comes from MP3 decoding, not from the analysis. Most
+songs on osu! are copyrighted: keep them in the songs folder, which stays out of git.
+
+### Tune it
+
+```bash
+npm run bench -w games/spectral-drift -- --tune 300
+```
+
+The tuner nudges a few params at a time and keeps any change that scores better. A third
+of the songs are held out: if their score doesn't rise along with the rest, the change
+only fits those songs. The best params are written to `bench/tuned-params.json`; check
+them with `--params bench/tuned-params.json`, then copy the ones you trust into
+`params.js`. Other options: `--only <names>`, `--no-builtin`, `--songs <dir>`, `--json`.

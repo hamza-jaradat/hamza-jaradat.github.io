@@ -6,10 +6,9 @@ import { ONSET } from './onsets.js';
 import { chromaBetween } from './pitch.js';
 
 const KERNEL = 4; // bars either side when scoring a boundary
-const MIN_BARS = 3;
 const PERCUSSIVE = ONSET.KICK | ONSET.SNARE | ONSET.HAT;
 
-export function analyzeStructure({ beatTimes, positions, duration, frameRate, intensity, low, events, pitch }) {
+export function analyzeStructure({ beatTimes, positions, duration, frameRate, intensity, low, events, pitch, params: p }) {
   const downbeats = [];
   for (let i = 0; i < beatTimes.length; i++) if (positions[i] === 0) downbeats.push(beatTimes[i]);
   const whole = { start: 0, end: duration, startBar: 0, endBar: 0, energy: mean(intensity, 0, intensity.length), kind: 'groove', label: 'A' };
@@ -68,7 +67,7 @@ export function analyzeStructure({ beatTimes, positions, duration, frameRate, in
   const sorted = Array.from(novelty.subarray(1)).sort((a, b) => a - b);
   const median = sorted[sorted.length >> 1];
   const spread = sorted.map((v) => Math.abs(v - median)).sort((a, b) => a - b)[sorted.length >> 1];
-  const threshold = Math.max(0.05, median + spread);
+  const threshold = Math.max(p.noveltyFloor, median + spread);
   const cuts = new Set();
   for (let i = 2; i < n - 1; i++) {
     let isPeak = true;
@@ -81,7 +80,7 @@ export function analyzeStructure({ beatTimes, positions, duration, frameRate, in
     const jump = window(i, 2) - window(i - 2, 2);
     const next = window(i + 1, 2) - window(i - 1, 2);
     const prev = window(i - 1, 2) - window(i - 3, 2);
-    if (Math.abs(jump) >= 0.2 && Math.abs(jump) >= Math.abs(next) && Math.abs(jump) >= Math.abs(prev)) cuts.add(i);
+    if (Math.abs(jump) >= p.energyJump && Math.abs(jump) >= Math.abs(next) && Math.abs(jump) >= Math.abs(prev)) cuts.add(i);
   }
 
   // Sections between cuts, merging any too short to matter into their closer neighbour.
@@ -90,7 +89,7 @@ export function analyzeStructure({ beatTimes, positions, duration, frameRate, in
   while (merged && edges.length > 2) {
     merged = false;
     for (let s = 0; s < edges.length - 1; s++) {
-      if (edges[s + 1] - edges[s] >= MIN_BARS) continue;
+      if (edges[s + 1] - edges[s] >= p.minBars) continue;
       const here = window(edges[s], edges[s + 1] - edges[s]);
       const left = s > 0 ? Math.abs(window(edges[s - 1], edges[s] - edges[s - 1]) - here) : Infinity;
       const right = s + 2 < edges.length ? Math.abs(window(edges[s + 1], edges[s + 2] - edges[s + 1]) - here) : Infinity;
@@ -118,22 +117,26 @@ export function analyzeStructure({ beatTimes, positions, duration, frameRate, in
     const a = current[s - 1];
     const b = current[s];
     const lowRise = barMean('low', b.startBar, b.startBar + 2) - barMean('low', b.startBar - 2, b.startBar);
-    if (b.kind !== 'peak' || a.kind === 'peak' || (b.energy - a.energy < 0.12 && lowRise < 0.15)) continue;
-    let best = b.startBar;
+    if (b.kind !== 'peak' || a.kind === 'peak' || (b.energy - a.energy < p.dropRise && lowRise < p.dropLowRise)) continue;
+    // A drop needs a lead-in: at least a short section's worth of bars before it.
+    let best = -1;
     let bestJump = -Infinity;
-    for (let k = Math.max(a.startBar + 1, b.startBar - 6); k <= Math.min(b.endBar - 2, b.startBar + 6); k++) {
+    for (let k = Math.max(a.startBar + p.minBars, b.startBar - 6); k <= Math.min(b.endBar - 2, b.startBar + 6); k++) {
       const jump = barMean('low', k, k + 2) - barMean('low', k - 2, k) + 0.5 * (barMean('energy', k, k + 2) - barMean('energy', k - 2, k));
       if (jump > bestJump) {
         bestJump = jump;
         best = k;
       }
     }
-    // It has to be sudden and land on a real beat that lasts (about 3+ hits a bar for 4+
-    // bars): not a slow swell, and not the soft attack of an ambient pad.
-    const sudden = barMean('energy', best, best + 2) - barMean('energy', best - 2, best);
+    // It has to land on a real beat that lasts (about 3+ hits a bar for 4+ bars), and it
+    // has to bring the rhythm section in: the bass or the drums jump. Not a slow swell, not
+    // the soft attack of an ambient pad, and not a song merely getting busier over a beat
+    // that never stopped.
+    if (best < 0) continue;
     const lowJump = barMean('low', best, best + 2) - barMean('low', best - 2, best);
-    if (barMean('drums', best, best + 4) < 0.2 || b.endBar - best < 4) continue;
-    if (sudden < 0.15 && lowJump < 0.2) continue;
+    const drumsJump = barMean('drums', best, best + 2) - barMean('drums', best - 2, best);
+    if (barMean('drums', best, best + 4) < p.dropDrums || b.endBar - best < 4) continue;
+    if (lowJump < p.dropLowJump && drumsJump < p.dropDrumsJump) continue;
     edges[s] = best;
     dropBars.push(best);
   }

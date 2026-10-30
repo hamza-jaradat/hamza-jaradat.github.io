@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Label Songs · Spectral Drift</title>
+    <style>
+      :root {
+        --bg: #0b0716;
+        --panel: #150e26;
+        --line: rgba(255, 255, 255, 0.12);
+        --text: #ece6ff;
+        --muted: #a99cc9;
+        --analysis: #5fe1ff;
+        --labels: #ff3fa4;
+        --drop: #ffd66e;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.45 system-ui, sans-serif;
+      }
+      header {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+      }
+      code {
+        color: var(--text);
+        word-break: break-all;
+      }
+      main {
+        display: grid;
+        grid-template-columns: minmax(180px, 240px) 1fr;
+        gap: 16px;
+        padding: 16px 18px;
+      }
+      aside ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      aside li button {
+        width: 100%;
+        text-align: left;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid transparent;
+        background: none;
+        color: var(--text);
+        cursor: pointer;
+        overflow-wrap: anywhere;
+      }
+      aside li button:hover {
+        background: var(--panel);
+      }
+      aside li button.current {
+        border-color: var(--labels);
+      }
+      aside li .done {
+        color: var(--analysis);
+      }
+      #empty,
+      .hint {
+        color: var(--muted);
+      }
+      .bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      #status {
+        color: var(--muted);
+      }
+      #status.dirty {
+        color: var(--drop);
+      }
+      button {
+        font: inherit;
+        color: var(--text);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 5px 10px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--muted);
+      }
+      button.primary {
+        border-color: var(--labels);
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        border-radius: 8px;
+        background: var(--panel);
+        margin-bottom: 10px;
+        cursor: pointer;
+      }
+      #overview {
+        height: 48px;
+      }
+      #detail {
+        height: 230px;
+      }
+      .tools {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      .group {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .group > span {
+        width: 70px;
+        color: var(--muted);
+      }
+      table {
+        border-collapse: collapse;
+        margin-bottom: 12px;
+      }
+      td,
+      th {
+        padding: 3px 12px 3px 0;
+        text-align: left;
+        font-weight: normal;
+      }
+      th {
+        color: var(--muted);
+      }
+      .legend span {
+        margin-right: 14px;
+      }
+      .legend i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 5px;
+        vertical-align: -1px;
+      }
+      kbd {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 0 4px;
+      }
+      @media (max-width: 720px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Label songs</h1>
+      <p>Songs folder: <code id="folder">…</code></p>
+    </header>
+    <main>
+      <aside>
+        <h2>Songs</h2>
+        <ul id="songs"></ul>
+        <p id="empty" hidden>No songs yet. Put audio files in the songs folder, then reload this page.</p>
+      </aside>
+      <section id="editor" hidden>
+        <div class="bar">
+          <h2 id="title"></h2>
+          <span id="status"></span>
+        </div>
+        <div class="bar">
+          <button id="play" type="button">Play</button>
+          <span id="time">0:00.0</span>
+          <label><input type="checkbox" id="clicks" /> Click on your beats</label>
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <span class="legend"><span><i style="background: var(--analysis)"></i>Analysis</span><span><i style="background: var(--labels)"></i>Your labels</span><span><i style="background: var(--drop)"></i>Drops</span></span>
+        </div>
+        <canvas id="overview"></canvas>
+        <canvas id="detail"></canvas>
+        <div class="tools">
+          <div class="group">
+            <span>Start</span>
+            <button type="button" data-act="from-analysis">Copy the analysis into your labels</button>
+          </div>
+          <div class="group">
+            <span>Beats</span>
+            <button type="button" data-act="nudge-back">All −10 ms</button>
+            <button type="button" data-act="nudge-fwd">All +10 ms</button>
+            <button type="button" data-act="double">Double tempo</button>
+            <button type="button" data-act="half">Half tempo</button>
+            <button type="button" data-act="add-beat">Add beat <kbd>B</kbd></button>
+          </div>
+          <div class="group">
+            <span>Bars</span>
+            <button type="button" data-act="toggle-down">Downbeat on/off <kbd>D</kbd></button>
+            <button type="button" data-act="bars-here">Bars of 4 from here <kbd>Shift</kbd>+<kbd>D</kbd></button>
+          </div>
+          <div class="group">
+            <span>Sections</span>
+            <button type="button" data-act="section">Section starts here <kbd>S</kbd></button>
+            <button type="button" data-act="drop">Drop here <kbd>X</kbd></button>
+            <label><input type="checkbox" id="no-drops" /> This song has no drop</label>
+          </div>
+          <div class="group">
+            <span>Edit</span>
+            <button type="button" data-act="delete">Delete selected <kbd>Del</kbd></button>
+            <button type="button" data-act="undo">Undo <kbd>Ctrl</kbd>+<kbd>Z</kbd></button>
+            <button type="button" data-act="save" class="primary">Save <kbd>Ctrl</kbd>+<kbd>S</kbd></button>
+          </div>
+        </div>
+        <h2>Analysis against your labels</h2>
+        <table id="scores"></table>
+        <p class="hint">
+          <kbd>Space</kbd> play or pause · <kbd>←</kbd> <kbd>→</kbd> seek, or nudge the selected mark (10 ms; with <kbd>Shift</kbd>, 1 ms) ·
+          click a mark in your lane to select it, anywhere else to seek · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>C</kbd> clicks on or off ·
+          <kbd>Esc</kbd> clear the selection. Marks you add land on the nearest beat or bar line when one is close.
+        </p>
+      </section>
+    </main>
+    <script type="module" src="./label.js"></script>
+  </body>
+</html>

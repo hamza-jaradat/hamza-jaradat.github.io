@@ -25,8 +25,9 @@ export function analyzeBuffer(audioBuffer, onProgress) {
   });
 }
 
-// Mono mix at roughly 22 kHz is plenty for onset and loudness analysis.
-function prepareSamples(buffer) {
+// Mono mix at roughly 22 kHz is plenty for onset and loudness analysis. Takes an
+// AudioBuffer, or anything shaped like one (the benchmark passes plain arrays).
+export function prepareSamples(buffer) {
   const factor = Math.max(1, Math.round(buffer.sampleRate / 22050));
   const len = Math.floor(buffer.length / factor);
   const out = new Float32Array(len);
