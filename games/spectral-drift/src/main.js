@@ -144,9 +144,9 @@ class App {
     try {
       const buffer = await getBuffer();
       if (buffer.duration < 8) throw new Error('That clip is too short. Pick a song at least 8 seconds long.');
-      const stage = 'Listening for beats…';
-      this.ui.setLoading(title, stage, 0.12);
-      const features = await analyzeBuffer(buffer, (p) => this.ui.setLoading(title, stage, 0.12 + p * 0.8));
+      const STAGES = { beats: 'Listening for beats…', notes: 'Finding the melody…' };
+      this.ui.setLoading(title, STAGES.beats, 0.12);
+      const features = await analyzeBuffer(buffer, (p, stage) => this.ui.setLoading(title, STAGES[stage] ?? STAGES.beats, 0.12 + p * 0.8));
       this.ui.setLoading(title, 'Building the road…', 0.95);
       await yieldToUI();
       this.song = { title, buffer, features, key, seed: hashString(key) };

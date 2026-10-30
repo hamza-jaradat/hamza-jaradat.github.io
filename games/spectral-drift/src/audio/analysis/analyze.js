@@ -5,11 +5,14 @@
 //
 // It runs in two halves. prepare() does the heavy signal processing that has no tunable
 // params; interpret() turns its output into notes, beats, bars and structure under a set
-// of params. The game runs both with the defaults; the benchmark caches prepare() per song
-// and re-runs interpret() while tuning.
+// of params. In between, the caller adds the Basic Pitch model's activations (notes.js) to
+// prepare()'s output as `keys`, if it can run the model: they give the melody's notes. The
+// game runs all of it with the defaults (analysis.worker.js); the benchmark caches the
+// first two per song and re-runs interpret() while tuning.
 import { clamp, movingAverage, percentile } from '../../util.js';
 import { barPositions, estimateTempo, extendBeats, steadyGrid, trackBeats } from './beats.js';
 import { hpss } from './hpss.js';
+import { KEY_RATE, joinMelody, leadLine, trackNotes } from './notes.js';
 import { ONSET, ONSET_FIELDS, detectOnsets, flux, logSpec, strengths } from './onsets.js';
 import { DEFAULT_PARAMS } from './params.js';
 import { pitchAt, pitchTrack } from './pitch.js';
@@ -18,10 +21,6 @@ import { analyzeStructure } from './structure.js';
 
 const SPEC_BANDS = 32;
 const noop = () => {};
-
-export function analyze(x, sr, progress = noop, params = DEFAULT_PARAMS) {
-  return interpret(prepare(x, sr, (p) => progress(0.9 * p)), params, (p) => progress(0.9 + 0.1 * p));
-}
 
 export function prepare(x, sr, progress = noop) {
   const spec = spectrogram(x, sr, (p) => progress(0.4 * p));
@@ -159,21 +158,32 @@ export function interpret(prep, params = DEFAULT_PARAMS, progress = noop) {
   progress(0.6);
 
   // --- Notes: pitch and sustain for each onset ------------------------------------
-  const onsets = new Float32Array(events.length * ONSET_FIELDS);
-  const pitches = events.map((o) => pitchAt(pitch, o.t + 0.03, o.t + 0.13));
-  events.forEach((o, i) => {
-    const pc = pitches[i];
-    let sustain = 0;
-    if (o.b & ONSET.TONE) {
-      // A note ends where it is struck again (any tone, if its pitch is unknown).
-      let stop = Math.min(nFrames, o.f + Math.round(3 * frameRate));
-      for (let j = i + 1; j < events.length && events[j].f < stop; j++) {
-        if (events[j].b & ONSET.TONE && (Number.isNaN(pc) || Math.abs(pitches[j] - pc) < 0.6)) stop = events[j].f;
+  let onsets;
+  if (prep.keys) {
+    // The melody gives every onset its pitch and every melody note its length; a melody note
+    // no onset caught (a pitch change without a new attack, say) becomes an onset of its own.
+    const notes = trackNotes(prep.keys, { onsetThresh: p.noteOnset, frameThresh: p.noteFrame, minFrames: Math.round(p.noteMinLen * KEY_RATE) });
+    const lead = leadLine(notes, prep.keys.n, { minMidi: p.leadMin, share: p.leadShare });
+    const list = joinMelody(events, lead.melody, p.noteMatch);
+    onsets = new Float32Array(list.length * ONSET_FIELDS);
+    list.forEach((o, i) => onsets.set([o.t, o.s, o.b, o.note ? o.note.midi : lead.at(o.t + 0.04), o.note ? o.note.dur : 0], i * ONSET_FIELDS));
+  } else {
+    onsets = new Float32Array(events.length * ONSET_FIELDS);
+    const pitches = events.map((o) => pitchAt(pitch, o.t + 0.03, o.t + 0.13));
+    events.forEach((o, i) => {
+      const pc = pitches[i];
+      let sustain = 0;
+      if (o.b & ONSET.TONE) {
+        // A note ends where it is struck again (any tone, if its pitch is unknown).
+        let stop = Math.min(nFrames, o.f + Math.round(3 * frameRate));
+        for (let j = i + 1; j < events.length && events[j].f < stop; j++) {
+          if (events[j].b & ONSET.TONE && (Number.isNaN(pc) || Math.abs(pitches[j] - pc) < 0.6)) stop = events[j].f;
+        }
+        sustain = sustainLength(toneEnergy, o.f, stop, frameRate, pitch, pc, timeOf);
       }
-      sustain = sustainLength(toneEnergy, o.f, stop, frameRate, pitch, pc, timeOf);
-    }
-    onsets.set([o.t, o.s, o.b, pc, sustain], i * ONSET_FIELDS);
-  });
+      onsets.set([o.t, o.s, o.b, pc, sustain], i * ONSET_FIELDS);
+    });
+  }
   progress(1);
 
   return {

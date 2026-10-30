@@ -47,4 +47,16 @@ export const DEFAULT_PARAMS = {
   dropDrums: 0.2,
   dropDrumsJump: 0.25,
   dropLowJump: 0.2,
+
+  // Notes, from the Basic Pitch model's activations (0..1): a note starts where the onset
+  // activation peaks above `noteOnset`, lasts while the note activation stays above
+  // `noteFrame`, and counts if it lasts `noteMinLen` seconds. The melody is the highest
+  // note above MIDI `leadMin` (below is the bass) that is at least `leadShare` as strong as
+  // the strongest one sounding. A melody note joins an onset within `noteMatch` seconds.
+  noteOnset: 0.5,
+  noteFrame: 0.2,
+  noteMinLen: 0.06,
+  leadMin: 52,
+  leadShare: 0.45,
+  noteMatch: 0.05,
 };

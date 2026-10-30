@@ -119,6 +119,8 @@ export function compose() {
     const s0 = Math.max(0, Math.round(t * SR));
     return [s0, Math.max(0, Math.min(Math.round(dur * SR), length - s0))];
   };
+  // Every pitched note played, for the benchmark's note scores: { t, dur, midi, part }.
+  const notes = [];
 
   // --- Instruments --------------------------------------------------------
   function kick(t, vel = 1, sidechain = true) {
@@ -174,6 +176,7 @@ export function compose() {
   }
 
   function bass(t, midi, dur, vel = 1, bright = 0.5) {
+    notes.push({ t, dur, midi, part: 'bass' });
     const f = hz(midi);
     const dt = f / SR;
     const [s0, len] = span(t, dur + 0.03);
@@ -198,6 +201,7 @@ export function compose() {
   }
 
   function pluck(t, midi, dur, vel = 1, cutoff = 2000, pan = 0) {
+    notes.push({ t, dur, midi, part: 'lead' });
     const f = hz(midi);
     const d1 = (f * Math.pow(2, -8 / 1200)) / SR;
     const d2 = (f * Math.pow(2, 8 / 1200)) / SR;
@@ -228,6 +232,7 @@ export function compose() {
   }
 
   function pad(t, chord, dur, vel = 1, cutoff = 1500) {
+    for (const midi of chord) notes.push({ t, dur, midi, part: 'pad' });
     const [s0, len] = span(t, dur + 0.6);
     const lpL = new SVF(cutoff, 0.8);
     const lpR = new SVF(cutoff, 0.8);
@@ -476,5 +481,5 @@ export function compose() {
     left[i] = Math.tanh(left[i] * drive) * norm;
     right[i] = Math.tanh(right[i] * drive) * norm;
   }
-  return { left, right };
+  return { left, right, notes };
 }

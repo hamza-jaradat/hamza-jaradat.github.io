@@ -87,21 +87,25 @@ export const BUILT_IN = {
       const b = 0.6;
       for (let k = 0; k < 64; k++) s.kick(0.2 + k * b, 0.7);
       const tune = [[2, 72], [1, 74], [1, 76], [3, 79], [1, 77], [2, 76], [2, 74], [4, 72], [1, 67], [1, 69], [2, 71], [2, 72], [4, 74], [2, 76], [2, 74], [4, 72]];
+      const notes = [];
       let t = 0.2 + 4 * b;
       for (let rep = 0; rep < 2; rep++) {
-        for (const [beats, m] of tune) {
-          s.note(t, beats * b * 0.95, m);
+        for (const [beats, midi] of tune) {
+          s.note(t, beats * b * 0.95, midi);
+          // The tune runs past the track's 40 s: label what is heard.
+          if (t < 39.9) notes.push({ t, dur: Math.min(beats * b * 0.95, 40 - t), midi });
           t += beats * b;
         }
       }
-      return { ...s, labels: { beats: range(64, (k) => 0.2 + k * b), drops: [] } };
+      return { ...s, labels: { beats: range(64, (k) => 0.2 + k * b), drops: [], notes } };
     },
   },
 };
 
-// The demo, fed to the analysis exactly as the game does (stereo 44.1 kHz, downmixed).
+// The demo, fed to the analysis exactly as the game does (stereo 44.1 kHz, downmixed). Its
+// melody is the plucked lead: the arpeggios, and the tune in the breakdown.
 function demo() {
-  const { left, right } = compose();
+  const { left, right, notes } = compose();
   const channels = [left, right];
   const { samples, sampleRate } = prepareSamples({ sampleRate: DEMO_SR, length: left.length, numberOfChannels: 2, getChannelData: (c) => channels[c] });
   const { bpm, start, sections } = DEMO_LAYOUT;
@@ -121,6 +125,7 @@ function demo() {
       downbeats: range(bars, (k) => start + 4 * k * beat),
       sections: parts,
       drops: parts.filter((p) => p.label.startsWith('drop')).map((p) => p.start),
+      notes: notes.filter((n) => n.part === 'lead').map(({ t, dur, midi }) => ({ t, dur, midi })),
     },
   };
 }

@@ -8,6 +8,9 @@ export default defineConfig({
     // three.js alone is ~600 kB minified; that's expected for this game.
     chunkSizeWarningLimit: 900,
   },
+  // Module workers, so the analysis worker can load TensorFlow.js as a chunk of its own once
+  // the rest of the analysis is under way.
+  worker: { format: 'es' },
   // The label page's song folder (dev server only; see bench/).
   plugins: [benchSongs()],
 });

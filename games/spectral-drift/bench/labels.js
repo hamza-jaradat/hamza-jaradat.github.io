@@ -11,6 +11,7 @@
 // Any of the four may be left out; that score is then skipped for the song. Optional:
 //   "span": [12.3, 201.7]       the stretch the beats and bars cover (the rest isn't judged)
 //   "highlights": [{ "start": 64.2, "end": 95.1 }]   the song's high points (osu! kiai)
+//   "notes": [{ "t": 2.6, "dur": 1.14, "midi": 72 }]  the melody's notes
 //   "source": "..."             where the labels came from
 // Harmonix Set annotations (`<song>.beats.txt`, `<song>.segments.txt`) are read too.
 
@@ -45,6 +46,12 @@ export function normalizeLabels(raw = {}) {
       .map((h) => ({ start: Number(h.start), end: Number(h.end) }))
       .filter((h) => Number.isFinite(h.start) && h.end > h.start)
       .sort((a, b) => a.start - b.start);
+  }
+  if (Array.isArray(raw.notes)) {
+    out.notes = raw.notes
+      .map((n) => ({ t: Number(n.t), dur: Number(n.dur), midi: Number(n.midi) }))
+      .filter((n) => Number.isFinite(n.t) && n.dur > 0 && Number.isFinite(n.midi))
+      .sort((a, b) => a.t - b.t);
   }
   if (typeof raw.source === 'string' && raw.source) out.source = raw.source;
   return out;

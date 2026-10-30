@@ -38,6 +38,7 @@ export function writeLabels(dir, file, labels) {
   const round = (t) => Math.round(t * 1e4) / 1e4;
   for (const key of ['beats', 'downbeats', 'drops']) if (clean[key]) clean[key] = clean[key].map(round);
   if (clean.sections) clean.sections = clean.sections.map((s) => ({ start: round(s.start), label: s.label }));
+  if (clean.notes) clean.notes = clean.notes.map((n) => ({ t: round(n.t), dur: round(n.dur), midi: n.midi }));
   writeFileSync(join(dir, file + LABELS_SUFFIX), JSON.stringify(clean, null, 1) + '\n');
   return clean;
 }

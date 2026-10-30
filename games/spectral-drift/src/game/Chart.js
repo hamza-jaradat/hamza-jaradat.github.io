@@ -300,6 +300,7 @@ function select(bars, diff) {
       lastT = c.t;
     }
     bar.melodic = source ? source.melodic : isMelodic(bar.notes);
+    for (const n of bar.notes) n.melodic = bar.melodic;
   }
   return picked;
 }
@@ -374,7 +375,8 @@ function cosine(a, b) {
 }
 
 // Long tones become holds, ending on an eighth note and clear of the next note. Drum hits
-// under a held note (where that note is still what you hear) fold into the hold.
+// under a held note (where that note is still what you hear) fold into the hold: any of
+// them while a melody moves, only those between the beats under a chord held over a groove.
 function makeHolds(notes, grid, diff) {
   for (let k = 0; k < notes.length; k++) {
     const n = notes[k];
@@ -386,7 +388,7 @@ function makeHolds(notes, grid, diff) {
     end = Math.min(end, n.t + 8 * beat);
     const under = [];
     let next = notes[k + 1 + under.length];
-    while (next && next.t < end - 0.1 && !(next.b & ONSET.TONE) && Math.abs(next.pitch - n.pitch) < 0.6 && next.importance <= n.importance) {
+    while (next && next.t < end - 0.1 && !(next.b & ONSET.TONE) && Math.abs(next.pitch - n.pitch) < 0.6 && next.importance <= n.importance && (n.melodic || next.level >= 2)) {
       under.push(next);
       next = notes[k + 1 + under.length];
     }

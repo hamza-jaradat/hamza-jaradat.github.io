@@ -3,3 +3,4 @@ dist
 # Benchmark songs (your own audio and labels) and tuner output stay local
 games/*/bench/songs/
 games/*/bench/tuned-params.json
+games/*/bench/.cache/

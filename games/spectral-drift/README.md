@@ -37,8 +37,14 @@ your setup, adjust **Settings → Audio offset**.
     percussive (hits) parts by median filtering.
   - `onsets.js`: spectral flux per layer (kick, snare, hats, tones) and peak picking that
     keeps only impulsive attacks, so pads and drones don't turn into notes.
-  - `pitch.js`: the melody's pitch and a chroma (harmony) per frame; with it, each note's
-    pitch and how long it rings.
+  - `notes.js`: the melody's notes, from Spotify's [Basic Pitch](https://github.com/spotify/basic-pitch)
+    model (a small neural network that hears which piano keys sound, and when they start).
+    The melody is the highest note that stands out above the bass; each onset takes its
+    pitch, and each melody note its real length (holds). `src/audio/transcribe.js` runs the
+    model with TensorFlow.js, on the GPU (WebGL) or else with WebAssembly, and only after
+    the rest of the analysis has started.
+  - `pitch.js`: a chroma (harmony) per frame, and the fallback melody pitch for browsers
+    that can't run the model.
   - `beats.js`: tempo, a dynamic-programming beat tracker, a steady-grid fit for
     produced music, and bar lines (downbeats) from chord changes, kicks and backbeats.
   - `structure.js`: sections from a bar self-similarity matrix (repeats share a letter),
@@ -76,12 +82,27 @@ This analyzes every labeled song and prints one score per song and task, plus me
 | Bars | Downbeats (first beat of each bar) within 70 ms |
 | Sections | Section boundaries within 3 s (and, for "tight", 0.5 s) |
 | Drops | Drops within 0.5 s, including no false ones |
+| Notes | Melody notes found as tonal onsets, within 50 ms |
+| Pitch | Melody notes found at the right pitch |
+| Holds | Notes of 0.45 s or more found with about their length |
 | Overall | A weighted mean of the above (beats count most) |
 
-Six built-in songs always run: the demo, whose layout the synth knows exactly, and
-synthetic tracks that each catch one mistake (a steady groove, beat-less pads, a tempo
+Six built-in songs always run: the demo, whose layout and notes the synth knows exactly,
+and synthetic tracks that each catch one mistake (a steady groove, beat-less pads, a tempo
 ramp, pads before the drums come in, a held melody). They show regressions, but they are
 not real music: add your own songs for scores that mean something.
+
+The Basic Pitch model runs on every song too (about a tenth of the song's length, then
+cached in `bench/.cache/`). `--no-notes` leaves it out, to score the fallback.
+
+After a change to the analysis or the charts, check that every chart is still playable:
+
+```bash
+npm run bench:play -w games/spectral-drift
+```
+
+A bot plays every difficulty of the built-in songs; it should collect every note, hit no
+hazard and finish every hold.
 
 ### Label your own songs
 
@@ -132,3 +153,9 @@ of the songs are held out: if their score doesn't rise along with the rest, the 
 only fits those songs. The best params are written to `bench/tuned-params.json`; check
 them with `--params bench/tuned-params.json`, then copy the ones you trust into
 `params.js`. Other options: `--only <names>`, `--no-builtin`, `--songs <dir>`, `--json`.
+
+## Credits
+
+The melody comes from [Basic Pitch](https://github.com/spotify/basic-pitch) by Spotify
+(Apache License 2.0). Its model is in `src/audio/analysis/basic-pitch/` with its license, and
+`src/audio/analysis/notes.js` follows its note tracking.

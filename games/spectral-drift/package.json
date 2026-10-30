@@ -8,11 +8,17 @@
     "build": "vite build",
     "preview": "vite preview",
     "bench": "node bench/run.mjs",
-    "bench:osu": "node bench/import-osu.mjs"
+    "bench:osu": "node bench/import-osu.mjs",
+    "bench:play": "node bench/play.mjs"
   },
   "dependencies": {
     "@fontsource/orbitron": "^5.3.0",
     "@fontsource/rajdhani": "^5.3.0",
+    "@tensorflow/tfjs-backend-cpu": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
+    "@tensorflow/tfjs-converter": "^4.22.0",
+    "@tensorflow/tfjs-core": "^4.22.0",
     "three": "^0.186.1"
   },
   "devDependencies": {

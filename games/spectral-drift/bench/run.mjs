@@ -9,6 +9,7 @@
 //   --no-builtin      leave out the built-in songs
 //   --params <file>   run with these params (JSON) over the defaults
 //   --tune <n>        try n variations of the params; the best go to bench/tuned-params.json
+//   --no-notes        leave out the Basic Pitch model (the game's fallback: pitch tracking)
 //   --json            print the results as JSON
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -19,6 +20,7 @@ import { hashString, mulberry32 } from '../src/util.js';
 import { METRICS, overall, scoreSong, summarize } from './metrics.js';
 import { decode, listSongs, readLabels, songsDir } from './songs.js';
 import { BUILT_IN } from './suite.js';
+import { keysFor } from './transcribe.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -53,6 +55,12 @@ const SPACE = {
   dropDrums: [0.05, 0.5],
   dropDrumsJump: [0.1, 0.6],
   dropLowJump: [0.05, 0.4],
+  noteOnset: [0.25, 0.75],
+  noteFrame: [0.15, 0.5],
+  noteMinLen: [0.03, 0.15],
+  leadMin: [36, 64, 'int'],
+  leadShare: [0.3, 0.9],
+  noteMatch: [0.02, 0.08],
 };
 
 const args = parseArgs(process.argv.slice(2));
@@ -78,10 +86,14 @@ async function loadSongs() {
   const only = args.only ? String(args.only).toLowerCase().split(',') : null;
   const wanted = (name) => !only || only.some((o) => name.toLowerCase().includes(o));
   const out = [];
-  const add = (name, x, sr, labels) => {
+  const add = async (name, x, sr, labels) => {
     const t0 = performance.now();
     const prep = prepare(x, sr);
-    log(`  ${name}  (${(x.length / sr).toFixed(0)} s, analyzed in ${((performance.now() - t0) / 1000).toFixed(1)} s)`);
+    const t1 = performance.now();
+    if (!args['no-notes']) prep.keys = await keysFor(x, sr);
+    const t2 = performance.now();
+    const notes = args['no-notes'] ? '' : `, notes in ${((t2 - t1) / 1000).toFixed(1)} s`;
+    log(`  ${name}  (${(x.length / sr).toFixed(0)} s, analyzed in ${((t1 - t0) / 1000).toFixed(1)} s${notes})`);
     out.push({ name, labels, prep });
   };
   log('Preparing songs…');
@@ -89,7 +101,7 @@ async function loadSongs() {
     for (const [name, song] of Object.entries(BUILT_IN)) {
       if (!wanted(name)) continue;
       const { x, sr, labels } = song.make();
-      add(name, x, sr, labels);
+      await add(name, x, sr, labels);
     }
   }
   const dir = songsDir(args.songs);
@@ -97,7 +109,7 @@ async function loadSongs() {
     if (!labeled || !wanted(file)) continue;
     try {
       const { samples, sampleRate } = await decode(join(dir, file));
-      add(file, samples, sampleRate, readLabels(dir, file));
+      await add(file, samples, sampleRate, readLabels(dir, file));
     } catch (err) {
       console.error(`  ${file}: ${err.message}`);
     }

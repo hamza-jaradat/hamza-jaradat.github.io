@@ -8,7 +8,7 @@ export function analyzeBuffer(audioBuffer, onProgress) {
     worker.onmessage = (e) => {
       const msg = e.data;
       if (msg.type === 'progress') {
-        onProgress?.(msg.p);
+        onProgress?.(msg.p, msg.stage);
       } else if (msg.type === 'done') {
         worker.terminate();
         resolve(unpack(msg.result, audioBuffer.duration));

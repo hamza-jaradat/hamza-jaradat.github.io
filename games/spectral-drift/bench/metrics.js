@@ -1,11 +1,13 @@
 // Scores an analysis against reference labels, in the conventions of music-research
 // benchmarks (MIREX, mir_eval): an estimated event counts when it lands within a window
 // of a reference event, and each reference event is matched at most once.
+import { ONSET, ONSET_FIELDS } from '../src/audio/analysis/onsets.js';
 
-export const WINDOWS = { beat: 0.07, boundary: 3, boundaryTight: 0.5, drop: 0.5 };
+export const WINDOWS = { beat: 0.07, boundary: 3, boundaryTight: 0.5, drop: 0.5, note: 0.05 };
+const LONG_NOTE = 0.45; // seconds: a note long enough to be a hold
 
 // How much each score counts towards a song's overall score.
-export const WEIGHTS = { beatF: 3, downbeatF: 2, boundaryF3: 1.5, dropF: 2, highlightR: 1 };
+export const WEIGHTS = { beatF: 3, downbeatF: 2, boundaryF3: 1.5, dropF: 2, highlightR: 1, noteF: 2, pitchAcc: 1.5, holdF: 1.5 };
 
 export const METRICS = [
   { key: 'beatF', label: 'Beats', hint: `F-measure, ±${WINDOWS.beat * 1000} ms` },
@@ -15,6 +17,9 @@ export const METRICS = [
   { key: 'boundaryF05', label: 'Sections (tight)', hint: `boundary F-measure, ±${WINDOWS.boundaryTight} s` },
   { key: 'dropF', label: 'Drops', hint: `F-measure, ±${WINDOWS.drop} s` },
   { key: 'highlightR', label: 'Highlights', hint: `starts of the song's high points (osu! kiai) found as a section boundary or drop (recall, ±${WINDOWS.boundary} s)` },
+  { key: 'noteF', label: 'Notes', hint: `melody notes found as tonal onsets (F-measure, ±${WINDOWS.note * 1000} ms)` },
+  { key: 'pitchAcc', label: 'Pitch', hint: 'melody notes found at the right pitch (±½ semitone)' },
+  { key: 'holdF', label: 'Holds', hint: `notes of ${LONG_NOTE} s or more found with about their length (±30%, F-measure)` },
 ];
 
 // Precision, recall and F-measure of estimated event times against reference times, and
@@ -68,6 +73,60 @@ export function tempo(beats) {
 // Section boundaries, leaving out the start of the song (which every analysis gets right).
 const boundaries = (sections) => sections.map((s) => s.start).filter((t) => t > 1);
 
+// Pairs reference and estimated events ({ t, ... }, both in time order) within `window`
+// of each other and for which ok(ref, est) holds, each used at most once.
+function pairUp(ref, est, window, ok = () => true) {
+  const pairs = [];
+  for (let i = 0, j = 0; i < ref.length && j < est.length; ) {
+    const d = est[j].t - ref[i].t;
+    if (Math.abs(d) <= window && ok(ref[i], est[j])) {
+      pairs.push([ref[i], est[j]]);
+      i++;
+      j++;
+    } else if (d < 0) j++;
+    else i++;
+  }
+  return pairs;
+}
+
+const fFrom = (hits, nRef, nEst) => (hits ? (2 * hits) / (nRef + nEst) : 0);
+
+// The analysis's tonal onsets with their pitch and length, from the worker's packed array or
+// the game's unpacked one.
+function toneNotes(onsets) {
+  const out = [];
+  if (ArrayBuffer.isView(onsets)) {
+    for (let i = 0; i < onsets.length; i += ONSET_FIELDS) {
+      if (onsets[i + 2] & ONSET.TONE) out.push({ t: onsets[i], pitch: onsets[i + 3], sustain: onsets[i + 4] });
+    }
+  } else {
+    for (const o of onsets ?? []) if (o.b & ONSET.TONE) out.push({ t: o.t, pitch: o.pitch, sustain: o.sustain });
+  }
+  return out;
+}
+
+// Melody scores: how many of its notes start on a tonal onset, at the right pitch, and
+// whether the long ones (holds in the game) come out about as long as they are.
+function noteScores(notes, onsets, s) {
+  const est = toneNotes(onsets);
+  // Notes struck together (a chord, or two lines in unison) are one onset with several pitches.
+  const ref = [];
+  for (const n of notes) {
+    const last = ref[ref.length - 1];
+    if (last && n.t - last.t < 0.01) last.pitches.push(n.midi);
+    else ref.push({ t: n.t, pitches: [n.midi] });
+  }
+  const pairs = pairUp(ref, est, WINDOWS.note);
+  s.noteF = fFrom(pairs.length, ref.length, est.length);
+  s.pitchAcc = pairs.length ? pairs.filter(([r, e]) => r.pitches.some((m) => Math.abs(m - e.pitch) <= 0.5)).length / pairs.length : 0;
+  const long = notes.filter((n) => n.dur >= LONG_NOTE);
+  if (long.length) {
+    const held = est.filter((e) => e.sustain >= LONG_NOTE);
+    const fits = (r, e) => Math.abs(e.sustain - r.dur) <= Math.max(0.15, 0.3 * r.dur);
+    s.holdF = fFrom(pairUp(long, held, WINDOWS.note, fits).length, long.length, held.length);
+  }
+}
+
 // Every score the labels allow: a song labeled with beats only gets beat scores, and so on.
 // Beats and bars are judged only inside the labels' span, or else between the first and
 // last labeled beat (a song labeled in part isn't penalized for the rest). `beatShift` is
@@ -97,6 +156,7 @@ export function scoreSong(labels, est) {
   if (Array.isArray(labels.drops)) s.dropF = fMeasure(labels.drops, Array.from(est.drops ?? []), WINDOWS.drop).f;
   const highs = (labels.highlights ?? []).map((h) => h.start).filter((t) => t > 1);
   if (highs.length) s.highlightR = fMeasure(highs, [...boundaries(est.sections ?? []), ...Array.from(est.drops ?? [])], WINDOWS.boundary).r;
+  if (labels.notes?.length) noteScores(labels.notes, est.onsets, s);
   return s;
 }
 
