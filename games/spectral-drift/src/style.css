@@ -316,6 +316,23 @@ h2 {
   box-shadow: 0 0 14px rgba(70, 217, 255, 0.45);
 }
 
+.segmented.genres {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.segmented.genres button {
+  padding: 7px 10px;
+  font-size: 15px;
+}
+
+.genre-note {
+  margin: -6px 0 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
 .settings {
   border-top: 1px solid var(--line);
   padding-top: 12px;

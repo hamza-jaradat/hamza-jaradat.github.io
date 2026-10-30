@@ -1,16 +1,19 @@
 // Turns a song's intensity curve into a 3D road: fast and downhill when the
 // music is intense, slow and climbing when it is calm, with gentle bends and
-// banking. Sampled TRACK_RATE times per second of song time.
+// banking. Sampled TRACK_RATE times per second of song time. A genre's style
+// (genres.js) sets how fast, winding, hilly and dramatic it gets.
 import { LEAD_IN, TAIL, TRACK_RATE } from '../config.js';
 import { clamp, movingAverage, mulberry32, sampleArray, smoothstep } from '../util.js';
+import { GENRES } from './genres.js';
 
 const V_MIN = 30;
 const V_MAX = 78;
 const TAU = Math.PI * 2;
 
 export class Track {
-  constructor(features, { speedMul = 1, seed = 1 } = {}) {
+  constructor(features, { speedMul: difficultySpeed = 1, seed = 1, style = GENRES.any.track } = {}) {
     const { duration, frameRate, intensity } = features;
+    const speedMul = difficultySpeed * style.speed;
     const beat = 60 / (features.bpm || 120);
     this.duration = duration;
     this.tStart = -(LEAD_IN + 3);
@@ -40,14 +43,15 @@ export class Track {
       const inSong = smoothstep(-1.5, 1.0, t) * (1 - smoothstep(duration, duration + 4, t));
       const il = iSlope[i];
       const m = moment(t);
-      speed[i] = (V_MIN + (V_MAX - V_MIN) * Math.pow(iSpeed[i], 1.25)) * speedMul * (1 - 0.12 * m.brake + 0.22 * m.surge);
-      const wave = Math.sin((TAU * t) / (beat * 8) + ph[3]) * 0.07 * smoothstep(0.45, 0.9, il);
-      pitch[i] = (0.09 - 0.42 * il + wave + 0.18 * m.climb - 0.35 * m.dive) * inSong;
+      const drama = style.drama;
+      speed[i] = (V_MIN + (V_MAX - V_MIN) * Math.pow(iSpeed[i], 1.25)) * speedMul * (1 - 0.12 * drama * m.brake + 0.22 * drama * m.surge);
+      const wave = Math.sin((TAU * t) / (beat * 8) + ph[3]) * 0.07 * style.bounce * smoothstep(0.45, 0.9, il);
+      pitch[i] = (0.09 - 0.42 * style.hills * il + wave + drama * (0.18 * m.climb - 0.35 * m.dive)) * inSong;
       const bend =
         0.55 * Math.sin((TAU * t) / 23 + ph[0]) +
         0.3 * Math.sin((TAU * t) / 13.7 + ph[1]) +
         0.15 * Math.sin((TAU * t) / 7.9 + ph[2]);
-      yawRate[i] = turnSign * bend * (0.18 + 0.22 * il) * inSong;
+      yawRate[i] = turnSign * bend * style.bends * (0.18 + 0.22 * il) * inSong;
     }
     const pitchS = movingAverage(pitch, Math.round(0.4 * this.rate));
     const yawS = movingAverage(yawRate, Math.round(0.4 * this.rate));

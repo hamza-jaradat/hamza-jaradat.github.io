@@ -1,28 +1,63 @@
 // Main-thread side of the analysis: downmix, decimate, and hand off to a worker.
 import { ONSET_FIELDS } from './analysis/onsets.js';
 
-export function analyzeBuffer(audioBuffer, onProgress) {
+// A song's analysis, kept in its worker so it can be redone under other params (another
+// genre) in a fraction of the time. openAnalysis() runs the first one.
+export class SongAnalysis {
+  constructor(duration) {
+    this.duration = duration;
+    this.features = null;
+    this.worker = new Worker(new URL('./analysis.worker.js', import.meta.url), { type: 'module' });
+    this.queue = Promise.resolve();
+  }
+
+  // The features under other params (overrides of analysis/params.js).
+  interpret(params) {
+    return this.request({ type: 'interpret', params });
+  }
+
+  dispose() {
+    this.worker.terminate();
+    this.fail?.(new Error('The analysis was closed'));
+  }
+
+  // One request at a time, resolving with the unpacked features.
+  request(message, transfer = [], onProgress) {
+    const run = () =>
+      new Promise((resolve, reject) => {
+        this.fail = reject;
+        this.worker.onmessage = (e) => {
+          const msg = e.data;
+          if (msg.type === 'progress') onProgress?.(msg.p, msg.stage);
+          else if (msg.type === 'done') resolve(unpack(msg.result, this.duration));
+          else if (msg.type === 'error') reject(new Error(msg.message));
+        };
+        this.worker.onerror = (e) => reject(new Error(e.message || 'Analysis worker failed'));
+        this.worker.postMessage(message, transfer);
+      });
+    const result = this.queue.then(run, run);
+    this.queue = result.catch(() => {});
+    return result;
+  }
+}
+
+export async function openAnalysis(audioBuffer, params, onProgress) {
+  const analysis = new SongAnalysis(audioBuffer.duration);
   const { samples, sampleRate } = prepareSamples(audioBuffer);
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL('./analysis.worker.js', import.meta.url), { type: 'module' });
-    worker.onmessage = (e) => {
-      const msg = e.data;
-      if (msg.type === 'progress') {
-        onProgress?.(msg.p, msg.stage);
-      } else if (msg.type === 'done') {
-        worker.terminate();
-        resolve(unpack(msg.result, audioBuffer.duration));
-      } else if (msg.type === 'error') {
-        worker.terminate();
-        reject(new Error(msg.message));
-      }
-    };
-    worker.onerror = (e) => {
-      worker.terminate();
-      reject(new Error(e.message || 'Analysis worker failed'));
-    };
-    worker.postMessage({ samples, sampleRate }, [samples.buffer]);
-  });
+  try {
+    analysis.features = await analysis.request({ type: 'analyze', samples, sampleRate, params }, [samples.buffer], onProgress);
+  } catch (err) {
+    analysis.dispose();
+    throw err;
+  }
+  return analysis;
+}
+
+// A one-off analysis (the label page): the features, and the worker let go.
+export async function analyzeBuffer(audioBuffer, onProgress, params) {
+  const analysis = await openAnalysis(audioBuffer, params, onProgress);
+  analysis.dispose();
+  return analysis.features;
 }
 
 // Mono mix at roughly 22 kHz is plenty for onset and loudness analysis. Takes an

@@ -126,6 +126,7 @@ function demo() {
       sections: parts,
       drops: parts.filter((p) => p.label.startsWith('drop')).map((p) => p.start),
       notes: notes.filter((n) => n.part === 'lead').map(({ t, dur, midi }) => ({ t, dur, midi })),
+      genre: 'electronic', // as the game plays it
     },
   };
 }

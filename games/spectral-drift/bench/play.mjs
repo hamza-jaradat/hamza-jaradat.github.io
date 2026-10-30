@@ -1,5 +1,5 @@
-// Plays every chart of the built-in songs with a bot, to check charts stay playable after a
-// change to the analysis or to Chart.js:
+// Plays every chart of the built-in songs with a bot, in every genre and difficulty, to
+// check charts stay playable after a change to the analysis, Chart.js or genres.js:
 //
 //   npm run bench:play -w games/spectral-drift            (add -- --no-notes for the fallback)
 //
@@ -10,6 +10,7 @@ import { interpret, prepare } from '../src/audio/analysis/analyze.js';
 import { ONSET_FIELDS } from '../src/audio/analysis/onsets.js';
 import { DIFFICULTIES, KIND, LANES, STATE, laneX } from '../src/config.js';
 import { buildChart } from '../src/game/Chart.js';
+import { GENRES } from '../src/game/genres.js';
 import { Session } from '../src/game/Session.js';
 import { BUILT_IN } from './suite.js';
 import { keysFor } from './transcribe.js';
@@ -24,21 +25,28 @@ const stubs = {
 };
 
 let bad = 0;
+let total = 0;
 for (const [name, song] of Object.entries(BUILT_IN)) {
   const { x, sr } = song.make();
   const prep = prepare(x, sr);
   if (!noNotes) prep.keys = await keysFor(x, sr);
-  const features = unpack(interpret(prep), x.length / sr);
-  console.log(`${name}: ${features.onsets.length} onsets`);
-  for (const diff of Object.values(DIFFICULTIES)) {
-    const chart = buildChart(features, diff, 99);
-    const r = play(features, chart);
-    const ok = r.collected === chart.notesTotal && r.hits === 0 && r.holdsDone === chart.holdsTotal;
-    if (!ok) bad++;
-    console.log(`  ${diff.id.padEnd(8)} ${ok ? 'ok ' : 'BAD'} ${r.collected}/${chart.notesTotal} notes, ${r.hits} hazards hit, ${r.holdsDone}/${chart.holdsTotal} holds, ${(chart.notesTotal / features.duration).toFixed(2)} notes/s`);
+  console.log(`${name}:${''.padEnd(10)}${Object.values(DIFFICULTIES).map((d) => d.label.padEnd(32)).join('')}`);
+  for (const [key, genre] of Object.entries(GENRES)) {
+    const features = unpack(interpret(prep, genre.params), x.length / sr);
+    const cells = [];
+    for (const diff of Object.values(DIFFICULTIES)) {
+      const chart = buildChart(features, diff, 99, genre.chart);
+      const r = play(features, chart);
+      const ok = r.collected === chart.notesTotal && r.hits === 0 && r.holdsDone === chart.holdsTotal;
+      total++;
+      if (!ok) bad++;
+      const result = `${r.collected}/${chart.notesTotal} notes ${r.holdsDone}/${chart.holdsTotal} holds`;
+      cells.push(`${ok ? 'ok ' : 'BAD'} ${result}${ok ? '' : `, ${r.hits} hazards hit`}`.padEnd(32));
+    }
+    console.log(`  ${key.padEnd(14)}${cells.join('')}`);
   }
 }
-console.log(bad ? `\n${bad} chart${bad === 1 ? '' : 's'} not playable.` : '\nEvery chart is playable.');
+console.log(bad ? `\n${bad} of ${total} charts not playable.` : `\nAll ${total} charts are playable.`);
 process.exitCode = bad ? 1 : 0;
 
 // The worker's packed onsets as the game unpacks them (src/audio/analyzer.js).

@@ -16,6 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { interpret, prepare } from '../src/audio/analysis/analyze.js';
 import { DEFAULT_PARAMS } from '../src/audio/analysis/params.js';
+import { GENRES } from '../src/game/genres.js';
 import { hashString, mulberry32 } from '../src/util.js';
 import { METRICS, overall, scoreSong, summarize } from './metrics.js';
 import { decode, listSongs, readLabels, songsDir } from './songs.js';
@@ -77,7 +78,7 @@ if (args.params) params = { ...params, ...JSON.parse(readFileSync(args.params, '
 if (args.tune) {
   tune(songs, Number(args.tune) || 200, params);
 } else {
-  const results = songs.map((s) => ({ name: s.name, ...scoreSong(s.labels, interpret(s.prep, params)) }));
+  const results = songs.map((s) => ({ name: s.name, genre: s.labels.genre, ...scoreSong(s.labels, interpret(s.prep, asGenre(s, params))) }));
   if (args.json) console.log(JSON.stringify({ songs: results, summary: summarize(results) }, null, 1));
   else printTable(results);
 }
@@ -117,8 +118,13 @@ async function loadSongs() {
   return out;
 }
 
+// A song labeled with a genre is analyzed as the game would analyze that genre.
+function asGenre(song, p) {
+  return { ...p, ...GENRES[song.labels.genre]?.params };
+}
+
 function evaluate(set, p) {
-  const totals = set.map((s) => overall(scoreSong(s.labels, interpret(s.prep, p)))).filter((v) => !Number.isNaN(v));
+  const totals = set.map((s) => overall(scoreSong(s.labels, interpret(s.prep, asGenre(s, p))))).filter((v) => !Number.isNaN(v));
   return totals.length ? totals.reduce((a, b) => a + b, 0) / totals.length : NaN;
 }
 
@@ -180,6 +186,14 @@ function printTable(results) {
   }
   const sum = summarize(results);
   console.log('Mean'.padEnd(nameWidth) + cols.map((c) => cell(sum[c.key], c.width)).join('') + cell(sum.overall, 9));
+  // With songs of several genres, a mean per genre shows where the analysis falls short.
+  const genres = [...new Set(results.map((r) => r.genre ?? 'any'))];
+  if (genres.length > 1) {
+    for (const g of genres) {
+      const own = summarize(results.filter((r) => (r.genre ?? 'any') === g));
+      console.log(`  ${GENRES[g]?.label ?? g}`.padEnd(nameWidth) + cols.map((c) => cell(own[c.key], c.width)).join('') + cell(own.overall, 9));
+    }
+  }
   console.log('\n' + cols.map((c) => `${c.label}: ${c.hint}`).join('\n'));
 }
 

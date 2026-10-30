@@ -29,6 +29,12 @@ are holds: stay in their lane until they end for extra points. Red blocks break 
 combo. Each song keeps a best score per difficulty. If the beats feel early or late on
 your setup, adjust **Settings → Audio offset**.
 
+Before you start, pick the song's **genre**: Hip-hop, Rock, Electronic, Pop or Ambient.
+Each plays its own way: hip-hop bounces on the drums, rock is fast and dense, electronic
+dives into its drops, pop follows the vocal line, ambient is a slow, flowing road of long
+holds. **Auto** goes by the genre tag in the file (MP3, M4A, FLAC, OGG, Opus or WAV), and
+the game remembers your pick for each song.
+
 ## How it works
 
 - `src/audio/analysis.worker.js` runs the analysis (`src/audio/analysis/analyze.js`) off
@@ -49,6 +55,10 @@ your setup, adjust **Settings → Audio offset**.
     produced music, and bar lines (downbeats) from chord changes, kicks and backbeats.
   - `structure.js`: sections from a bar self-similarity matrix (repeats share a letter),
     with drops, build-ups and breakdowns.
+- `src/game/genres.js`: what each genre expects of the music (its usual tempo) and how
+  its chart and road play; `src/audio/tags.js` reads a file's genre tag for Auto. The
+  analysis worker keeps the song, so switching genre redoes only the fast half of the
+  analysis.
 - `src/game/Chart.js`: notes snap to the beat grid; easier difficulties keep the
   strongest notes on the strongest beats; lanes follow the melody's pitch (or sway with
   the beat); repeated bars repeat their pattern; long tones become holds; every drop
@@ -101,8 +111,12 @@ After a change to the analysis or the charts, check that every chart is still pl
 npm run bench:play -w games/spectral-drift
 ```
 
-A bot plays every difficulty of the built-in songs; it should collect every note, hit no
-hazard and finish every hold.
+A bot plays every genre and difficulty of the built-in songs; it should collect every
+note, hit no hazard and finish every hold.
+
+A song's labels can name its genre (`"genre": "rock"`): it is then analyzed as the game
+would analyze that genre, and the benchmark adds a mean per genre, which shows the genres
+the analysis handles worst.
 
 ### Label your own songs
 
@@ -134,7 +148,8 @@ song is copied into the songs folder with labels for its beats, bars (from its t
 points) and highlights (its kiai sections, usually choruses and drops), covering the
 stretch the map plays. Maps whose tempo changes come less than 5 s apart are skipped:
 their grids chase a drifting live tempo and need checking by hand. Options:
-`--songs <dir>`, `--limit <n>`, `--force`.
+`--songs <dir>`, `--genre <name>` (label them all with a genre, e.g. a folder of rock
+maps), `--limit <n>`, `--force`.
 
 Kiai marks a song's high points, not all its sections, so it is scored as "Highlights"
 (how many of them start at a section boundary or drop the analysis found), and drops still

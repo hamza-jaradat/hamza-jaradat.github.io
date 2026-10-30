@@ -2,10 +2,11 @@
 // snapped to the beat grid; easier difficulties keep the strongest notes on the
 // strongest beats; lanes follow the melody's contour, or sway between kick and snare;
 // a repeated bar repeats its pattern; long tones become holds; drops land on power
-// notes; hazards keep to the beat.
+// notes; hazards keep to the beat. A genre's style (genres.js) leans each of these its way.
 import { ONSET } from '../audio/analysis/onsets.js';
 import { HOLD, KIND, LANES, STATE } from '../config.js';
 import { clamp, mulberry32, sampleArray } from '../util.js';
+import { GENRES } from './genres.js';
 
 const TIER_POINTS = [10, 15, 25, 40];
 const POWER_POINTS = 100;
@@ -23,16 +24,22 @@ const ANCHORS = [];
 for (let a = 0; a < LANES; a++) for (let b = 0; b < LANES; b++) if (a !== b && Math.abs(a - b) <= 3) ANCHORS.push([a, b]);
 const DRUMS = ONSET.KICK | ONSET.SNARE;
 
-export function buildChart(features, diff, seed) {
+export function buildChart(features, difficulty, seed, style = GENRES.any.chart) {
+  const diff = {
+    ...difficulty,
+    perBar: difficulty.perBar.map((v) => v * style.density),
+    holdMin: difficulty.holdMin * style.holds,
+    hazard: difficulty.hazard * style.hazards,
+  };
   const rng = mulberry32(seed ^ 0x9e3779b9);
   const grid = makeGrid(features);
   const bars = makeBars(features, grid);
-  candidates(features, grid, bars);
-  const notes = select(bars, diff);
+  candidates(features, grid, bars, style);
+  const notes = select(bars, diff, style);
   makeHolds(notes, grid, diff);
   for (const bar of bars) bar.notes = bar.notes.filter((n) => !n.dropped);
-  assignLanes(bars, rng);
-  powerNotes(notes, bars, features);
+  assignLanes(bars, rng, style);
+  powerNotes(notes, bars, features, style);
 
   const intensityAt = (t) => sampleArray(features.intensity, t * features.frameRate);
   const objects = notes.map((n) => {
@@ -172,7 +179,7 @@ function makeBars(features, grid) {
 
 // --- Candidate notes ------------------------------------------------------------------
 
-function candidates(features, grid, bars) {
+function candidates(features, grid, bars, style) {
   const { onsets, duration } = features;
   const list = onsets.filter((o) => o.t > 0.4 && o.t < duration - 0.3);
   if (!list.length) return;
@@ -211,7 +218,7 @@ function candidates(features, grid, bars) {
       if (Math.min(Math.abs(fr - 0.25), Math.abs(fr - 0.75)) < 0.05) bar.straight = (bar.straight ?? 0) + list[i].s;
       else if (Math.min(Math.abs(fr - 1 / 3), Math.abs(fr - 2 / 3)) < 0.05) bar.swung = (bar.swung ?? 0) + list[i].s;
     }
-    for (const bar of bars) bar.triplet = (bar.swung ?? 0) > 0.5 && (bar.swung ?? 0) > 1.5 * (bar.straight ?? 0);
+    for (const bar of bars) bar.triplet = (bar.swung ?? 0) > 0.5 && (bar.swung ?? 0) > style.swing * (bar.straight ?? 0);
   }
 
   const weights = grid?.trusted ? LEVEL_WEIGHT : FLAT_WEIGHT;
@@ -220,7 +227,7 @@ function candidates(features, grid, bars) {
     const o = list[i];
     const g = grid ? grid.snap(o.t, barAt(o.t).triplet) : { at: o.t, level: 4, beat: -1, sub: 0 };
     const t = grid?.trusted && Math.abs(g.at - o.t) <= SNAP ? g.at : o.t;
-    const layer = o.b & DRUMS ? 1 : o.b & ONSET.TONE ? 0.95 : 0.55;
+    const layer = o.b & DRUMS ? style.drums : o.b & ONSET.TONE ? style.tones : style.hats;
     const ev = {
       t,
       rel: rel[i],
@@ -260,7 +267,7 @@ function barFinder(bars) {
 
 // Bar by bar, the most important events within the difficulty's budget. A bar that sounds
 // like an earlier one (same rhythm, similar energy) reuses that bar's choice of hits.
-function select(bars, diff) {
+function select(bars, diff, style) {
   let lastT = -10;
   const picked = [];
   for (const bar of bars) {
@@ -299,7 +306,7 @@ function select(bars, diff) {
       picked.push(c);
       lastT = c.t;
     }
-    bar.melodic = source ? source.melodic : isMelodic(bar.notes);
+    bar.melodic = style.melody && (source ? source.melodic : isMelodic(bar.notes));
     for (const n of bar.notes) n.melodic = bar.melodic;
   }
   return picked;
@@ -413,7 +420,7 @@ function removeDropped(notes) {
 // of bars, with off-beat notes passing between them. A repeated bar replays its pattern,
 // mirrored every other 4-bar phrase. Every move stays within what the player can reach in
 // the time since the previous note.
-function assignLanes(bars, rng) {
+function assignLanes(bars, rng, style) {
   let lane = Math.floor(LANES / 2);
   let end = -10;
   let moved = -10;
@@ -428,7 +435,7 @@ function assignLanes(bars, rng) {
     if (bar.section !== section || bar.index - anchorBar >= 2) {
       section = bar.section;
       anchorBar = bar.index;
-      const width = bar.energy > 0.75 ? 3 : bar.energy > 0.45 ? 2 : 1;
+      const width = clamp((bar.energy > 0.75 ? 3 : bar.energy > 0.45 ? 2 : 1) + style.sway, 1, 3);
       const near = ANCHORS.filter((a) => Math.abs(a[0] - lane) <= 1 && Math.abs(a[1] - a[0]) === width);
       anchors = near[Math.floor(rng() * near.length)];
     }
@@ -497,9 +504,9 @@ function planStart(notes, preferred) {
 
 // --- Power notes and hazards ----------------------------------------------------------
 
-// Every drop lands on a power note, and so does the first downbeat of each 8-bar phrase
-// in the song's most intense sections.
-function powerNotes(notes, bars, features) {
+// Every drop lands on a power note, and so does the first downbeat of each phrase (8 bars,
+// or the style's) in the song's most intense sections.
+function powerNotes(notes, bars, features, style) {
   const nearest = (t, tol) => {
     let best = null;
     for (const n of notes) if (Math.abs(n.t - t) <= tol && (!best || Math.abs(n.t - t) < Math.abs(best.t - t))) best = n;
@@ -514,7 +521,7 @@ function powerNotes(notes, bars, features) {
   for (const bar of bars) {
     if (bar.section?.kind !== 'peak' || !bar.beats) continue;
     if (!phraseStart || bar.section !== phraseStart.section) phraseStart = bar;
-    if ((bar.index - phraseStart.index) % 8 !== 0) continue;
+    if ((bar.index - phraseStart.index) % style.phrase !== 0) continue;
     const n = bar.notes[0];
     if (!n || n.level !== 0 || notes.some((m) => m.power && Math.abs(m.t - n.t) < 6)) continue;
     n.power = true;

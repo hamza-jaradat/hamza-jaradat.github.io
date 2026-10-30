@@ -6,10 +6,12 @@
 // The source can be one .osz file, a folder of .osz files, an osu! Songs folder (one
 // folder per beatmap set), or one extracted set. Options:
 //   --songs <dir>   where to put them (default bench/songs, or $SONGS_DIR)
+//   --genre <name>  label them with a genre (hiphop, rock, electronic, pop or ambient)
 //   --limit <n>     stop after importing n songs
 //   --force         import again songs that are already there
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, resolve } from 'node:path';
+import { GENRES } from '../src/game/genres.js';
 import { hashString } from '../src/util.js';
 import { LABELS_SUFFIX } from './labels.js';
 import { parseOsu, pickDifficulty } from './osu.js';
@@ -18,7 +20,11 @@ import { unzip } from './zip.js';
 
 const args = parseArgs(process.argv.slice(2));
 if (!args._.length) {
-  console.error('Usage: npm run bench:osu -w games/spectral-drift -- <.osz file, folder of .osz files, or osu! Songs folder> [--songs <dir>] [--limit <n>] [--force]');
+  console.error('Usage: npm run bench:osu -w games/spectral-drift -- <.osz file, folder of .osz files, or osu! Songs folder> [--songs <dir>] [--genre <name>] [--limit <n>] [--force]');
+  process.exit(1);
+}
+if (args.genre && !GENRES[args.genre]) {
+  console.error(`Unknown genre "${args.genre}". Use one of: ${Object.keys(GENRES).join(', ')}`);
   process.exit(1);
 }
 const out = songsDir(args.songs);
@@ -72,7 +78,7 @@ function importSet(source) {
   const name = safeName(`${meta.Artist || 'Unknown artist'} - ${meta.Title || source.label} (osu ${setId})`) + extname(audio.name).toLowerCase();
   if (!args.force && existsSync(join(out, name)) && existsSync(join(out, name + LABELS_SUFFIX))) return { skip: 'already imported' };
   writeFileSync(join(out, name), audio.read());
-  writeLabels(out, name, { ...labels, source: `osu! beatmap set ${setId}, "${meta.Version ?? '?'}" by ${meta.Creator ?? '?'}` });
+  writeLabels(out, name, { ...labels, genre: args.genre, source: `osu! beatmap set ${setId}, "${meta.Version ?? '?'}" by ${meta.Creator ?? '?'}` });
   return { name, labels, info };
 }
 

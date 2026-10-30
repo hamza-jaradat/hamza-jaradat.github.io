@@ -1,4 +1,5 @@
 // DOM overlay: menus, loading, HUD and results.
+import { GENRES } from '../game/genres.js';
 import { heatCSS } from '../render/shaderLib.js';
 import { formatTime } from '../util.js';
 
@@ -61,6 +62,19 @@ export class UI {
         if (value) handlers.onDifficulty(value);
       });
     }
+
+    const genres = $('ready-genre');
+    for (const [value, label] of [['auto', 'Auto'], ...Object.entries(GENRES).filter(([k]) => k !== 'any').map(([k, g]) => [k, g.label])]) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.value = value;
+      btn.textContent = label;
+      genres.append(btn);
+    }
+    genres.addEventListener('click', (e) => {
+      const value = e.target.closest('button')?.dataset.value;
+      if (value) handlers.onGenre(value);
+    });
 
     const settingsChanged = () =>
       handlers.onSettings({
@@ -129,8 +143,16 @@ export class UI {
     this.$('load-bar').style.width = `${Math.round(progress * 100)}%`;
   }
 
-  showReady({ title, features, chart, best }) {
+  showReady({ title, features, chart, best, genre }) {
     this.$('ready-title').textContent = title;
+    this.markGenre(genre.choice);
+    const g = GENRES[genre.genre];
+    let why = '';
+    if (genre.choice === 'auto') {
+      if (genre.auto !== 'any') why = genre.tag ? `Auto picked ${g.label} from the file's tag “${genre.tag}”. ` : `Auto picked ${g.label}. `;
+      else why = genre.tag ? `Auto: the file's tag “${genre.tag}” names no genre it knows. ` : 'Auto: the file has no genre tag. ';
+    }
+    this.$('ready-genre-note').textContent = why + g.about;
     drawGraph(this.$('ready-graph'), features, { labels: true });
     const stats = [
       [formatTime(features.duration), 'Length'],
@@ -144,6 +166,20 @@ export class UI {
     this.$('ready-best').innerHTML = best
       ? `Best on this difficulty: <b>${best.score.toLocaleString()}</b> · grade ${best.grade}`
       : 'No score on this difficulty yet.';
+  }
+
+  // A genre was picked; the road is being rebuilt for it.
+  genreWorking(choice) {
+    this.markGenre(choice);
+    this.$('ready-genre-note').textContent = 'Rebuilding the road…';
+  }
+
+  markGenre(choice) {
+    for (const btn of this.$('ready-genre').children) {
+      const on = btn.dataset.value === choice;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
+    }
   }
 
   setHudSong(title, features) {
