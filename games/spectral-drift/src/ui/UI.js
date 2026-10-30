@@ -81,9 +81,10 @@ export class UI {
         music: Number($('set-music').value),
         sfx: Number($('set-sfx').value),
         offset: Number($('set-offset').value),
+        motion: Number($('set-motion').value),
         quality: $('set-quality').checked,
       });
-    for (const id of ['set-music', 'set-sfx', 'set-offset']) $(id).addEventListener('input', settingsChanged);
+    for (const id of ['set-music', 'set-sfx', 'set-offset', 'set-motion']) $(id).addEventListener('input', settingsChanged);
     $('set-quality').addEventListener('change', settingsChanged);
 
     // Drag and drop anywhere on the page.
@@ -129,6 +130,8 @@ export class UI {
     this.$('set-sfx').value = s.sfx;
     this.$('set-offset').value = s.offset;
     this.$('set-offset-val').textContent = `${s.offset > 0 ? '+' : ''}${s.offset} ms`;
+    this.$('set-motion').value = s.motion;
+    this.$('set-motion-val').textContent = s.motion > 0 ? `${s.motion}%` : 'Off';
     this.$('set-quality').checked = s.quality;
     for (const btn of document.querySelectorAll('.segmented[data-setting="difficulty"] button')) {
       const on = btn.dataset.value === s.difficulty;

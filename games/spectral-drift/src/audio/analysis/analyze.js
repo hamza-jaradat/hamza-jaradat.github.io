@@ -168,7 +168,7 @@ export function interpret(prep, params = DEFAULT_PARAMS, progress = noop) {
     const lead = leadLine(notes, prep.keys.n, { minMidi: p.leadMin, share: p.leadShare });
     const list = joinMelody(events, lead.melody, p.noteMatch);
     onsets = new Float32Array(list.length * ONSET_FIELDS);
-    list.forEach((o, i) => onsets.set([o.t, o.s, o.b, o.note ? o.note.midi : lead.at(o.t + 0.04), o.note ? o.note.dur : 0], i * ONSET_FIELDS));
+    list.forEach((o, i) => onsets.set([o.t, o.s, o.b, o.note ? o.note.midi : lead.at(o.t + 0.04), o.note ? o.note.dur : 0, o.kick ?? 0, o.snare ?? 0], i * ONSET_FIELDS));
   } else {
     onsets = new Float32Array(events.length * ONSET_FIELDS);
     const pitches = events.map((o) => pitchAt(pitch, o.t + 0.03, o.t + 0.13));
@@ -183,7 +183,7 @@ export function interpret(prep, params = DEFAULT_PARAMS, progress = noop) {
         }
         sustain = sustainLength(toneEnergy, o.f, stop, frameRate, pitch, pc, timeOf);
       }
-      onsets.set([o.t, o.s, o.b, pc, sustain], i * ONSET_FIELDS);
+      onsets.set([o.t, o.s, o.b, pc, sustain, o.kick, o.snare], i * ONSET_FIELDS);
     });
   }
   progress(1);

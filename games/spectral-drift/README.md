@@ -36,6 +36,12 @@ holds. **Auto** goes by the genre tag in the file (MP3, M4A, FLAC, OGG, Opus or 
 when there's none to go by, by how the song sounds. The game remembers your pick for each
 song.
 
+The road moves with the drums. Every kick thumps it down under you and sends a ring of light
+racing ahead. The backbeat (beats 2 and 4, where most songs put the snare) twists it one way,
+then the other, and flashes its edges. Every drop sends a shockwave down it. Hip-hop moves it
+hardest, Ambient hardly at all. **Settings → Road motion with the drums** tones the motion
+down or turns it off; the lights still react.
+
 ## How it works
 
 - `src/audio/analysis.worker.js` runs the analysis (`src/audio/analysis/analyze.js`) off
@@ -43,7 +49,8 @@ song.
   - `spectrogram.js`, `hpss.js`: a 64-band spectrogram split into harmonic (tones) and
     percussive (hits) parts by median filtering.
   - `onsets.js`: spectral flux per layer (kick, snare, hats, tones) and peak picking that
-    keeps only impulsive attacks, so pads and drones don't turn into notes.
+    keeps only impulsive attacks, so pads and drones don't turn into notes. Hits that land
+    together merge into one, which keeps how hard its kick and its snare hit.
   - `notes.js`: the melody's notes, from Spotify's [Basic Pitch](https://github.com/spotify/basic-pitch)
     model (a small neural network that hears which piano keys sound, and when they start).
     The melody is the highest note that stands out above the bass; each onset takes its
@@ -70,6 +77,10 @@ song.
   lands on a power note. Every move is within what a player can reach.
 - `src/game/Track.js`: intensity becomes speed, slope, bends and banking, sampled 60×/s;
   build-ups climb towards their drop, which dives and surges.
+- `src/render/RoadPulse.js`: the road's reaction to the drums (kicks, backbeats and drops),
+  as a height offset along and across the road. The road's shaders apply it, and the ship,
+  gems and camera follow it the same way, so everything on the road moves together and the
+  chart is unchanged.
 - `src/game/Session.js`: steering, hit windows, holds, scoring and overdrive, plus the
   beat pulse and the drop and build-up cues.
 - `src/render/`: chunked road with spectrum towers and arches, instanced gems, ship and

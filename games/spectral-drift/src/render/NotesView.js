@@ -58,7 +58,8 @@ export class NotesView {
     this.cursor = 0;
   }
 
-  update(track, chart, t, origin, shipX, magnet, beat) {
+  // `pulse` (RoadPulse) moves everything with the road under it as the drums hit.
+  update(track, chart, t, origin, shipX, magnet, beat, pulse = null) {
     this.group.position.copy(origin);
     let nNote = 0;
     let nPower = 0;
@@ -75,7 +76,7 @@ export class NotesView {
         const ahead = track.distAt(o.t) - sNow;
         if (ahead > VIEW_DIST) break;
         if (gone(o)) continue;
-        if (o.hold > 0) this.ribbon(track, o, t, origin, sNow, beat);
+        if (o.hold > 0) this.ribbon(track, o, t, origin, sNow, beat, pulse);
         const st = o.state;
         if (st === STATE.COLLECTED || st === STATE.HIT || st === STATE.SMASHED) continue;
         const dt = o.t - t;
@@ -87,7 +88,7 @@ export class NotesView {
         const bob = Math.sin(t * 4 + o.t * 7) * 0.06;
         const h = HOVER + bob;
         const px = F.p.x + F.R.x * x + F.U.x * h - origin.x;
-        const py = F.p.y + F.R.y * x + F.U.y * h - origin.y;
+        const py = F.p.y + F.R.y * x + F.U.y * h - origin.y + (pulse ? pulse.lift(sNow + ahead, x) : 0);
         const pz = F.p.z + F.R.z * x + F.U.z * h - origin.z;
         const appear = smoothstep(VIEW_DIST, VIEW_DIST * 0.8, ahead);
         const dim = st === STATE.MISSED ? 0.22 : 1;
@@ -128,7 +129,7 @@ export class NotesView {
 
   // A hold's beam along its lane, from its head (or the ship, once held) to its end:
   // bright while held, faint once let go.
-  ribbon(track, o, t, origin, sNow, beat) {
+  ribbon(track, o, t, origin, sNow, beat, pulse) {
     const hs = o.holdState;
     if (hs === HOLD.DONE) return;
     const t1 = o.t + o.hold;
@@ -141,9 +142,11 @@ export class NotesView {
     const mesh = this.ribbons;
     const max = mesh.instanceMatrix.count;
     const pa = track.pointAt(ta, x, RIBBON_HEIGHT, this.pa);
+    if (pulse) pa.y += pulse.lift(track.distAt(ta), x);
     while (ta < t1 && this.nRibbon < max) {
       const tb = Math.min(t1, ta + RIBBON_STEP / Math.max(10, track.speedAt(ta)));
       const pb = track.pointAt(tb, x, RIBBON_HEIGHT, this.pb);
+      if (pulse) pb.y += pulse.lift(track.distAt(tb), x);
       track.frameAt((ta + tb) / 2, this.frame);
       const dx = pb.x - pa.x;
       const dy = pb.y - pa.y;

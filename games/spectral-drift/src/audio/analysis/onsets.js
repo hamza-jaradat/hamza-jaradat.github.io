@@ -3,7 +3,9 @@
 import { percentile } from '../../util.js';
 
 export const ONSET = { KICK: 1, SNARE: 2, HAT: 4, TONE: 8 };
-export const ONSET_FIELDS = 5; // packed per onset: t, strength, layer flags, pitch (MIDI or NaN), sustain (s)
+// Packed per onset: t, strength, layer flags, pitch (MIDI or NaN), sustain (s), and how hard
+// the kick and the snare hit in it (each on its own layer's scale, 0 if it didn't).
+export const ONSET_FIELDS = 7;
 const MERGE_WINDOW = 0.035;
 
 export function logSpec(spec, gain = 100) {
@@ -46,11 +48,15 @@ export function strengths(fluxCurves, share = 0.35, floors = []) {
   });
 }
 
-// Picks onsets in each layer and merges hits that coincide into single events.
+// Picks onsets in each layer and merges hits that coincide into single events, keeping how
+// hard the kick and the snare hit in each (a merged event's strength is its loudest layer's).
 export function detectOnsets(layers, frameRate, timeOf) {
   const raw = [];
   for (const { curve, type, weight, delta, sharp } of layers) {
-    for (const f of pickPeaks(curve, frameRate, delta, sharp)) raw.push({ f, t: timeOf(f), s: curve[f] * weight, b: type });
+    for (const f of pickPeaks(curve, frameRate, delta, sharp)) {
+      const v = curve[f];
+      raw.push({ f, t: timeOf(f), s: v * weight, b: type, kick: type === ONSET.KICK ? v : 0, snare: type === ONSET.SNARE ? v : 0 });
+    }
   }
   raw.sort((a, b) => a.t - b.t);
   const events = [];
@@ -59,6 +65,8 @@ export function detectOnsets(layers, frameRate, timeOf) {
     const last = events[events.length - 1];
     if (last && o.t - anchor < MERGE_WINDOW) {
       last.b |= o.b;
+      last.kick = Math.max(last.kick, o.kick);
+      last.snare = Math.max(last.snare, o.snare);
       if (o.s > last.s) {
         last.s = o.s;
         last.t = o.t;

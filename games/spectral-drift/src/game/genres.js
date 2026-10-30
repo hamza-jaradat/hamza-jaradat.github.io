@@ -12,13 +12,14 @@
 //   track.speed, track.bends, track.hills: how fast, how winding and how hilly the road is
 //   track.bounce   rolling hills in time with the bars
 //   track.drama    how hard build-ups climb and drops dive
+//   track.react    how hard the road thumps, twists and ripples with the drums
 //
 // "any" assumes nothing: it is how the game played before genres.
 
 const NEUTRAL = {
   params: {},
   chart: { density: 1, drums: 1, tones: 0.95, hats: 0.55, holds: 1, hazards: 1, melody: true, swing: 1.5, sway: 0, phrase: 8 },
-  track: { speed: 1, bends: 1, hills: 1, bounce: 1, drama: 1 },
+  track: { speed: 1, bends: 1, hills: 1, bounce: 1, drama: 1, react: 1 },
 };
 
 const genre = (label, about, { params = {}, chart = {}, track = {} } = {}) => ({
@@ -31,29 +32,30 @@ const genre = (label, about, { params = {}, chart = {}, track = {} } = {}) => ({
 
 export const GENRES = {
   any: genre('Any', 'No genre style: the music alone shapes the road.'),
-  hiphop: genre('Hip-hop', 'Lanes bounce on kick and snare and the road rolls with the bars. Few holds and hazards.', {
+  hiphop: genre('Hip-hop', 'Lanes bounce on kick and snare, the road thumps hardest with the drums and rolls with the bars. Few holds and hazards.', {
     params: { tempoCenter: 92 },
     chart: { drums: 1.1, tones: 0.85, holds: 1.5, hazards: 0.7, melody: false, swing: 1 },
-    track: { speed: 0.94, bends: 0.85, bounce: 2.4, drama: 0.8 },
+    track: { speed: 0.94, bends: 0.85, bounce: 2.4, drama: 0.8, react: 1.5 },
   }),
   rock: genre('Rock', 'Faster and denser, with wide lane swings, hazards everywhere and more power notes.', {
     params: { tempoCenter: 140 },
     chart: { density: 1.15, hats: 0.45, hazards: 1.45, sway: 1, phrase: 4 },
-    track: { speed: 1.1, bends: 1.25, hills: 1.15, bounce: 0.7 },
+    track: { speed: 1.1, bends: 1.25, hills: 1.15, bounce: 0.7, react: 1.15 },
   }),
   electronic: genre('Electronic', 'Build-ups climb higher and drops dive deeper.', {
     params: { tempoCenter: 126 },
     chart: { density: 1.05 },
-    track: { speed: 1.04, drama: 1.35 },
+    track: { speed: 1.04, drama: 1.35, react: 1.25 },
   }),
   pop: genre('Pop', 'Notes follow the vocal line, with fewer hazards.', {
     params: { tempoCenter: 112 },
     chart: { drums: 0.9, tones: 1.05, holds: 0.9, hazards: 0.8 },
+    track: { react: 0.9 },
   }),
   ambient: genre('Ambient', 'A slow road of long waves: fewer notes, long holds, hardly any hazards.', {
     params: { tempoCenter: 90 },
     chart: { density: 0.75, drums: 0.85, tones: 1.1, holds: 0.75, hazards: 0.3, sway: -1 },
-    track: { speed: 0.85, bends: 0.75, hills: 0.85, bounce: 1.5, drama: 0.45 },
+    track: { speed: 0.85, bends: 0.75, hills: 0.85, bounce: 1.5, drama: 0.45, react: 0.35 },
   }),
 };
 

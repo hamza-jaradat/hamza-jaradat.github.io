@@ -22,7 +22,7 @@ import { hashString } from './util.js';
 const SETTINGS_KEY = 'spectral-drift:settings';
 const BEST_KEY = 'spectral-drift:best';
 const GENRE_KEY = 'spectral-drift:genres'; // the genre picked for each song, unless Auto
-const DEFAULT_SETTINGS = { music: 85, sfx: 50, offset: 0, quality: true, difficulty: 'normal' };
+const DEFAULT_SETTINGS = { music: 85, sfx: 50, offset: 0, motion: 100, quality: true, difficulty: 'normal' };
 
 // Yield so the loading text can paint; a timer (unlike rAF) also fires in background tabs.
 const yieldToUI = () => new Promise((r) => setTimeout(r, 16));
@@ -96,6 +96,7 @@ class App {
     this.audio.setMusicVolume(s.music / 100);
     this.audio.setSfxVolume(s.sfx / 100);
     this.audio.offset = s.offset / 1000;
+    this.world.pulse.motion = s.motion / 100;
     if (this.world.highQuality !== s.quality) this.world.setQuality(s.quality);
     this.ui.setSettings(s);
     writeJSON(SETTINGS_KEY, s);
@@ -219,7 +220,7 @@ class App {
     const style = GENRES[genre];
     this.track = new Track(features, { speedMul: diff.speed, seed, style: style.track });
     this.chart = buildChart(features, diff, seed, style.chart);
-    this.world.setTrack(this.track, features, this.chart, seed);
+    this.world.setTrack(this.track, features, this.chart, seed, style.track.react);
     this.session = new Session({
       features,
       track: this.track,

@@ -84,7 +84,8 @@ function unpack(r, duration) {
   const onsets = [];
   const n = ONSET_FIELDS;
   for (let i = 0; i < r.onsets.length; i += n) {
-    onsets.push({ t: r.onsets[i], s: r.onsets[i + 1], b: r.onsets[i + 2], pitch: r.onsets[i + 3], sustain: r.onsets[i + 4] });
+    const [t, s, b, pitch, sustain, kick, snare] = r.onsets.subarray(i, i + n);
+    onsets.push({ t, s, b, pitch, sustain, kick, snare });
   }
   return { ...r, onsets, duration };
 }

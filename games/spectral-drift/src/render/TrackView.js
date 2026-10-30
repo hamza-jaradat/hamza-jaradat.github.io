@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LANES, TRACK_HALF_WIDTH, TRACK_MARGIN } from '../config.js';
 import { mulberry32, sampleArray } from '../util.js';
+import { ROAD_PULSE_GLSL } from './RoadPulse.js';
 import { FOG_GLSL, HEAT_GLSL } from './shaderLib.js';
 
 const CHUNK_SECONDS = 4;
@@ -59,6 +60,8 @@ export class TrackView {
     const rPos = new Float32Array(n * 12);
     const rH = new Float32Array(n * 4);
     const rI = new Float32Array(n * 4);
+    const rS = new Float32Array(n * 4);
+    const rX = new Float32Array(n * 4);
     for (let k = 0; k < n; k++) {
       const i3 = (i0 + k) * 3;
       const px = tr.pos[i3] - ox;
@@ -87,6 +90,8 @@ export class TrackView {
       );
       rH.set([0, 1, 0, 1], k * 4);
       rI.set([I, I, I, I], k * 4);
+      rS.fill(tr.dist[i0 + k], k * 4, k * 4 + 4);
+      rX.set([-w, -w, w, w], k * 4);
     }
     const sIdx = [];
     const rIdx = [];
@@ -112,6 +117,8 @@ export class TrackView {
     railGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
     railGeo.setAttribute('aH', new THREE.BufferAttribute(rH, 1));
     railGeo.setAttribute('aI', new THREE.BufferAttribute(rI, 1));
+    railGeo.setAttribute('aS', new THREE.BufferAttribute(rS, 1));
+    railGeo.setAttribute('aX', new THREE.BufferAttribute(rX, 1));
     railGeo.setIndex(rIdx);
     railGeo.computeBoundingSphere();
     const rails = new THREE.Mesh(railGeo, m.rail);
@@ -122,6 +129,8 @@ export class TrackView {
     const pPos = [];
     const pH = [];
     const pI = [];
+    const pS = [];
+    const pX = [];
     const bars = [];
     let nextPylon = Math.ceil(tr.dist[i0] / PYLON_SPACING) * PYLON_SPACING;
     let nextBar = Math.ceil(tr.dist[i0] / BAR_SPACING) * BAR_SPACING;
@@ -139,6 +148,8 @@ export class TrackView {
           pPos.push(ex, ey, ez, ex, ey - PYLON_DEPTH, ez);
           pH.push(0, 1);
           pI.push(tr.intensity[i], tr.intensity[i]);
+          pS.push(tr.dist[i], tr.dist[i]);
+          pX.push(w * side, w * side);
         }
       }
       if (tr.dist[i] >= nextBar) {
@@ -165,6 +176,8 @@ export class TrackView {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
       g.setAttribute('aH', new THREE.Float32BufferAttribute(pH, 1));
       g.setAttribute('aI', new THREE.Float32BufferAttribute(pI, 1));
+      g.setAttribute('aS', new THREE.Float32BufferAttribute(pS, 1));
+      g.setAttribute('aX', new THREE.Float32BufferAttribute(pX, 1));
       g.computeBoundingSphere();
       group.add(new THREE.LineSegments(g, m.pylon));
     }
@@ -203,6 +216,7 @@ export class TrackView {
       const count = g.attributes.position.count;
       g.setAttribute('aT', new THREE.BufferAttribute(new Float32Array(count).fill(gt), 1));
       g.setAttribute('aI', new THREE.BufferAttribute(new Float32Array(count).fill(tr.intensityAt(gt)), 1));
+      g.setAttribute('aS', new THREE.BufferAttribute(new Float32Array(count).fill(tr.distAt(gt)), 1));
       gates.push(g);
     }
     if (gates.length) {
@@ -307,6 +321,12 @@ function createMaterials(U) {
     uOverdrive: U.uOverdrive,
     uFogColor: U.uFogColor,
     uFogDensity: U.uFogDensity,
+    // The drums' motion and light (RoadPulse.js).
+    uShipS: U.uShipS,
+    uDip: U.uDip,
+    uTwist: U.uTwist,
+    uRipples: U.uRipples,
+    uBackbeat: U.uBackbeat,
   };
   const edge = (TRACK_MARGIN / (2 * TRACK_HALF_WIDTH)).toFixed(5);
 
@@ -320,11 +340,14 @@ function createMaterials(U) {
       varying float vI;
       varying float vS;
       varying float vDepth;
+      ${ROAD_PULSE_GLSL}
       void main() {
         vUv = uv;
         vI = aI;
         vS = aS;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec3 p = position;
+        p.y += roadLift(aS, (uv.x - 0.5) * ${(2 * TRACK_HALF_WIDTH).toFixed(4)});
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
         vDepth = -mv.z;
         gl_Position = projectionMatrix * mv;
       }
@@ -334,12 +357,14 @@ function createMaterials(U) {
       uniform float uBeat;
       uniform float uOverdrive;
       uniform float uShipU;
+      uniform float uBackbeat;
       varying vec2 vUv;
       varying float vI;
       varying float vS;
       varying float vDepth;
       ${HEAT_GLSL}
       ${FOG_GLSL}
+      ${ROAD_PULSE_GLSL}
       const float LANES = ${LANES}.0;
       const float EDGE = ${edge};
       void main() {
@@ -365,6 +390,11 @@ function createMaterials(U) {
         float margin = 1.0 - smoothstep(0.0, EDGE, min(u, 1.0 - u));
         col += hc * margin * 0.3;
 
+        // The kicks' ripples cross the road as bands of light; backbeats flash its edges.
+        float glow = roadGlow(vS);
+        col += mix(hc, vec3(1.0, 0.97, 0.92), 0.65) * glow * (0.45 + 1.2 * line + 0.5 * margin);
+        col += hc * uBackbeat * (line * (1.0 - inner) * 1.2 + margin * 0.4);
+
         float ahead = vUv.y - uTime;
         float du = (u - uShipU) * 22.0;
         float spot = exp(-du * du) * exp(-ahead * ahead * 2500.0);
@@ -389,13 +419,20 @@ function createMaterials(U) {
     vertexShader: /* glsl */ `
       attribute float aH;
       attribute float aI;
+      attribute float aS;
+      attribute float aX;
       varying float vH;
       varying float vI;
+      varying float vGlow;
       varying float vDepth;
+      ${ROAD_PULSE_GLSL}
       void main() {
         vH = aH;
         vI = aI;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vGlow = roadGlow(aS);
+        vec3 p = position;
+        p.y += roadLift(aS, aX);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
         vDepth = -mv.z;
         gl_Position = projectionMatrix * mv;
       }
@@ -403,15 +440,17 @@ function createMaterials(U) {
     fragmentShader: /* glsl */ `
       uniform float uBeat;
       uniform float uOverdrive;
+      uniform float uBackbeat;
       varying float vH;
       varying float vI;
+      varying float vGlow;
       varying float vDepth;
       ${HEAT_GLSL}
       ${FOG_GLSL}
       void main() {
         vec3 hc = mix(heat(vI), vec3(1.0, 0.82, 0.4), uOverdrive * 0.75);
         float a = pow(clamp(1.0 - vH, 0.0, 1.0), 1.6);
-        vec3 col = hc * a * (0.5 + 0.8 * uBeat);
+        vec3 col = hc * a * (0.5 + 0.8 * uBeat + 1.5 * uBackbeat) + mix(hc, vec3(1.0, 0.97, 0.92), 0.65) * a * 1.4 * vGlow;
         col *= 1.0 - fogFactor(vDepth);
         gl_FragColor = vec4(col, 1.0);
       }
@@ -424,13 +463,18 @@ function createMaterials(U) {
     vertexShader: /* glsl */ `
       attribute float aH;
       attribute float aI;
+      attribute float aS;
+      attribute float aX;
       varying float vH;
       varying float vI;
       varying float vDepth;
+      ${ROAD_PULSE_GLSL}
       void main() {
         vH = aH;
         vI = aI;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vec3 p = position;
+        p.y += roadLift(aS, aX) * (1.0 - aH); // the top stays on the road's edge
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
         vDepth = -mv.z;
         gl_Position = projectionMatrix * mv;
       }
@@ -508,13 +552,19 @@ function createMaterials(U) {
     vertexShader: /* glsl */ `
       attribute float aT;
       attribute float aI;
+      attribute float aS;
       varying float vT;
       varying float vI;
+      varying float vGlow;
       varying float vDepth;
+      ${ROAD_PULSE_GLSL}
       void main() {
         vT = aT;
         vI = aI;
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vGlow = roadGlow(aS);
+        vec3 p = position;
+        p.y += roadLift(aS, 0.0);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
         vDepth = -mv.z;
         gl_Position = projectionMatrix * mv;
       }
@@ -525,13 +575,14 @@ function createMaterials(U) {
       uniform float uOverdrive;
       varying float vT;
       varying float vI;
+      varying float vGlow;
       varying float vDepth;
       ${HEAT_GLSL}
       ${FOG_GLSL}
       void main() {
         vec3 hc = mix(heat(vI), vec3(1.0, 0.82, 0.4), uOverdrive * 0.75);
         float flash = exp(-abs(uTime - vT) * 5.0);
-        vec3 col = hc * (0.9 + 0.8 * uBeat + 3.0 * flash);
+        vec3 col = hc * (0.9 + 0.8 * uBeat + 3.0 * flash + 1.2 * vGlow);
         col *= 1.0 - fogFactor(vDepth);
         gl_FragColor = vec4(col, 1.0);
       }

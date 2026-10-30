@@ -81,16 +81,18 @@ export class Ship {
     this.flashColor.setRGB(color[0], color[1], color[2]);
   }
 
-  update(track, t, x, vx, dt, { beat = 0, overdrive = 0, invuln = 0, time = 0 } = {}) {
+  // `pulse` (RoadPulse) moves the ship with the road under it as the drums hit.
+  update(track, t, x, vx, dt, { beat = 0, overdrive = 0, invuln = 0, time = 0, pulse = null } = {}) {
     const F = track.frameAt(t, this.frame);
     const hover = HOVER + Math.sin(time * 3.1) * 0.04 + beat * 0.05;
     this.group.position.copy(F.p).addScaledVector(F.R, x).addScaledVector(F.U, hover);
+    if (pulse) this.group.position.y += pulse.lift(pulse.shipS, x);
     this.basis.makeBasis(F.R, F.U, this.back.copy(F.T).negate());
     this.group.quaternion.setFromRotationMatrix(this.basis);
 
     this.roll += (clamp(-vx * 0.07, -0.65, 0.65) - this.roll) * damp(10, dt);
     this.yaw += (clamp(-vx * 0.02, -0.25, 0.25) - this.yaw) * damp(10, dt);
-    this.body.rotation.set(0, this.yaw, this.roll);
+    this.body.rotation.set(0, this.yaw, this.roll + (pulse ? pulse.roll(pulse.shipS) : 0));
 
     this.flash = Math.max(0, this.flash - dt * 4);
     const glow = 0.7 + beat * 0.3 + this.flash * 0.6;
@@ -116,8 +118,8 @@ export class Ship {
   }
 
   // Trails live in world space relative to `origin` (see World).
-  updateTrails(track, origin, overdrive) {
-    for (const tr of this.trailList) tr.build(track, origin, overdrive);
+  updateTrails(track, origin, overdrive, pulse = null) {
+    for (const tr of this.trailList) tr.build(track, origin, overdrive, pulse);
     this.trails.position.copy(origin);
   }
 }
@@ -216,7 +218,7 @@ class Trail {
     return h[0];
   }
 
-  build(track, origin, overdrive) {
+  build(track, origin, overdrive, pulse) {
     const h = this.hist;
     if (h.length < 2) {
       this.alpha.fill(0);
@@ -234,7 +236,7 @@ class Trail {
       const cx = e.x + this.offsetX;
       const cy = e.y + this.offsetY;
       const px = F.p.x + F.R.x * cx + F.U.x * cy - origin.x;
-      const py = F.p.y + F.R.y * cx + F.U.y * cy - origin.y;
+      const py = F.p.y + F.R.y * cx + F.U.y * cy - origin.y + (pulse ? pulse.lift(track.distAt(tk), cx) : 0);
       const pz = F.p.z + F.R.z * cx + F.U.z * cy - origin.z;
       const w = this.width * (1 - f * 0.85) * 0.5;
       this.positions.set([px - F.R.x * w, py - F.R.y * w, pz - F.R.z * w, px + F.R.x * w, py + F.R.y * w, pz + F.R.z * w], k * 6);

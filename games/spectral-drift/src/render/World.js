@@ -8,6 +8,7 @@ import { CameraRig } from './CameraRig.js';
 import { NotesView } from './NotesView.js';
 import { Bursts, Streaks } from './Particles.js';
 import { PostFX } from './PostFX.js';
+import { RoadPulse } from './RoadPulse.js';
 import { Ship } from './Ship.js';
 import { Sky } from './Sky.js';
 import { TrackView } from './TrackView.js';
@@ -52,6 +53,8 @@ export class World {
       uPixelRatio: { value: this.pixelRatio },
       uPointScale: { value: 400 },
     };
+    this.pulse = new RoadPulse();
+    Object.assign(this.uniforms, this.pulse.uniforms);
 
     this.sky = new Sky(this.uniforms);
     this.ship = new Ship();
@@ -95,13 +98,16 @@ export class World {
     this.postfx.setSize(w, h, this.pixelRatio);
   }
 
-  setTrack(track, features, chart, seed = 1) {
+  // `react`: how hard the road moves with the drums (the genre's track.react); the menu's
+  // road, with no music, leaves it at 0.
+  setTrack(track, features, chart, seed = 1, react = 0) {
     if (this.trackView) {
       this.scene.remove(this.trackView.group);
       this.trackView.dispose();
     }
     this.track = track;
     this.chart = chart;
+    this.pulse.setSong(track, features, react);
     this.trackView = new TrackView(track, features, this.uniforms, seed);
     this.scene.add(this.trackView.group);
     this.resetDynamics();
@@ -128,6 +134,7 @@ export class World {
   burst(t, x, rgb, count, spread = 7, size = 0.35) {
     const track = this.track;
     track.pointAt(t, x, 0.62, this.tmp);
+    this.tmp.y += this.pulse.lift(track.distAt(t), x);
     track.frameAt(t, this.frame);
     this.bursts.emit(this.tmp, this.frame.T, track.speedAt(t), rgb, count, spread, size);
   }
@@ -152,18 +159,20 @@ export class World {
     U.uFogColor.value.copy(horizon).multiplyScalar(0.55);
     this.scene.fog.color.copy(U.uFogColor.value);
 
-    this.ship.update(track, s.t, s.shipX, s.shipVX, dt, { beat: s.beat, overdrive: od, invuln: s.invuln, time: this.clock });
+    const pulse = this.pulse;
+    pulse.update(s.t);
+    this.ship.update(track, s.t, s.shipX, s.shipVX, dt, { beat: s.beat, overdrive: od, invuln: s.invuln, time: this.clock, pulse });
     this.origin.copy(this.ship.group.position);
-    this.ship.updateTrails(track, this.origin, od);
+    this.ship.updateTrails(track, this.origin, od, pulse);
     this.trackView.update(s.t, dt);
-    this.notes.update(track, this.chart, s.t, this.origin, s.shipX, s.magnet, s.beat);
+    this.notes.update(track, this.chart, s.t, this.origin, s.shipX, s.magnet, s.beat, pulse);
     this.bursts.update(dt, this.origin);
     this.streaks.update(track, s.t, this.origin, s.intensity, od);
 
     const v = track.speedAt(s.t);
     const speedNorm = Math.min(1, Math.max(0, (v - track.speedMin) / (track.speedMax - track.speedMin)));
     const tension = s.tension ?? 0;
-    this.rig.update(track, s.t, s.shipX, dt, { speedNorm, overdrive: od, kick: s.kick, tension });
+    this.rig.update(track, s.t, s.shipX, dt, { speedNorm, overdrive: od, kick: s.kick, tension, pulse });
     U.uPointScale.value = (window.innerHeight * this.pixelRatio) / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
 
     track.frameAt(s.t, this.frame);

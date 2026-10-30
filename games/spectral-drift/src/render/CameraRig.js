@@ -6,6 +6,7 @@ import { damp } from '../util.js';
 const BACK = 6.2;
 const AHEAD = 24;
 const HEIGHT = 2.35;
+const RIDE = 0.2; // how much of the road's drum motion the camera rides, so the road visibly moves
 
 export class CameraRig {
   constructor(camera) {
@@ -36,7 +37,7 @@ export class CameraRig {
     this.fovKick = Math.max(this.fovKick, amount);
   }
 
-  update(track, t, shipX, dt, { speedNorm = 0, overdrive = 0, kick = 0, tension = 0 } = {}) {
+  update(track, t, shipX, dt, { speedNorm = 0, overdrive = 0, kick = 0, tension = 0, pulse = null } = {}) {
     const v = Math.max(1, track.speedAt(t));
     const tc = t - BACK / v;
     const ta = t + AHEAD / v;
@@ -49,6 +50,10 @@ export class CameraRig {
     this.lateral += (shipX * 0.55 - this.lateral) * damp(8, dt);
     track.pointAt(tc, this.lateral, HEIGHT, this.pos);
     track.pointAt(ta, this.lateral * 0.4, 0.1, this.look);
+    if (pulse) {
+      this.pos.y += RIDE * pulse.lift(track.distAt(tc), this.lateral);
+      this.look.y += RIDE * pulse.lift(track.distAt(ta), this.lateral * 0.4);
+    }
     track.frameAt(tc, this.frame);
     this.up.lerp(this.frame.U, damp(5, dt)).normalize();
 
