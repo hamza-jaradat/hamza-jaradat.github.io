@@ -174,7 +174,7 @@ class App {
   }
 
   // getSong resolves to { buffer, tag, genre }: the audio, its genre tag, and the genre
-  // that tag names (or null).
+  // that tag names (or null). Without one, the analysis listens for the genre (Auto's pick).
   async load(title, key, getSong) {
     this.busy = true;
     this.audio.stop();
@@ -184,15 +184,23 @@ class App {
     try {
       const { buffer, tag, genre: tagged } = await getSong();
       if (buffer.duration < 8) throw new Error('That clip is too short. Pick a song at least 8 seconds long.');
-      const auto = tagged ?? 'any';
-      const choice = readJSON(GENRE_KEY, {})[key] ?? 'auto';
-      const genre = choice === 'auto' || !GENRES[choice] ? auto : choice;
-      const STAGES = { beats: 'Listening for beats…', notes: 'Finding the melody…' };
+      const saved = readJSON(GENRE_KEY, {})[key];
+      const choice = GENRES[saved] ? saved : 'auto';
+      const first = choice === 'auto' ? (tagged ?? 'any') : choice;
+      const STAGES = { beats: 'Listening for beats…', notes: 'Finding the melody…', genre: 'Recognizing the genre…' };
       this.ui.setLoading(title, STAGES.beats, 0.12);
-      const analysis = await openAnalysis(buffer, GENRES[genre].params, (p, stage) => this.ui.setLoading(title, STAGES[stage] ?? STAGES.beats, 0.12 + p * 0.8));
+      const progress = (p, stage) => this.ui.setLoading(title, STAGES[stage] ?? STAGES.beats, 0.12 + p * 0.8);
+      const analysis = await openAnalysis(buffer, GENRES[first].params, progress, { detectGenre: !tagged });
+      // Auto goes by the tag, or else by the sound; a genre other than the first one
+      // analyzed expects other things of the music, so the song is interpreted again.
+      const auto = tagged ?? analysis.features.sound?.genre ?? 'any';
+      const genre = choice === 'auto' ? auto : choice;
+      if (genre !== first) analysis.features = await analysis.interpret(GENRES[genre].params);
       this.ui.setLoading(title, 'Building the road…', 0.95);
       await yieldToUI();
-      this.song = { title, buffer, features: analysis.features, analysis, key, seed: hashString(key), tag, auto, choice, genre };
+      const sound = analysis.features.sound;
+      const from = tagged ? 'tag' : sound?.genre ? 'sound' : null;
+      this.song = { title, buffer, features: analysis.features, analysis, key, seed: hashString(key), tag, sound, auto, from, choice, genre };
       this.buildLevel();
       this.showReady();
     } catch (err) {
@@ -224,13 +232,13 @@ class App {
   }
 
   showReady() {
-    const { title, features, choice, genre, auto, tag } = this.song;
+    const { title, features, choice, genre, auto, from, tag, sound } = this.song;
     this.ui.showReady({
       title,
       features,
       chart: this.chart,
       best: this.bests()[this.bestKey()],
-      genre: { choice, genre, auto, tag },
+      genre: { choice, genre, auto, from, tag, sound },
     });
     this.setState('ready');
   }

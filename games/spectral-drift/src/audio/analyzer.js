@@ -41,11 +41,13 @@ export class SongAnalysis {
   }
 }
 
-export async function openAnalysis(audioBuffer, params, onProgress) {
+// The first analysis of a song; with detectGenre, its features say the genre it sounds like
+// (`sound`).
+export async function openAnalysis(audioBuffer, params, onProgress, { detectGenre = false } = {}) {
   const analysis = new SongAnalysis(audioBuffer.duration);
   const { samples, sampleRate } = prepareSamples(audioBuffer);
   try {
-    analysis.features = await analysis.request({ type: 'analyze', samples, sampleRate, params }, [samples.buffer], onProgress);
+    analysis.features = await analysis.request({ type: 'analyze', samples, sampleRate, params, detectGenre }, [samples.buffer], onProgress);
   } catch (err) {
     analysis.dispose();
     throw err;

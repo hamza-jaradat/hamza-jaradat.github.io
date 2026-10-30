@@ -7,7 +7,7 @@ export const WINDOWS = { beat: 0.07, boundary: 3, boundaryTight: 0.5, drop: 0.5,
 const LONG_NOTE = 0.45; // seconds: a note long enough to be a hold
 
 // How much each score counts towards a song's overall score.
-export const WEIGHTS = { beatF: 3, downbeatF: 2, boundaryF3: 1.5, dropF: 2, highlightR: 1, noteF: 2, pitchAcc: 1.5, holdF: 1.5 };
+export const WEIGHTS = { beatF: 3, downbeatF: 2, boundaryF3: 1.5, dropF: 2, highlightR: 1, noteF: 2, pitchAcc: 1.5, holdF: 1.5, genreOk: 1 };
 
 export const METRICS = [
   { key: 'beatF', label: 'Beats', hint: `F-measure, ±${WINDOWS.beat * 1000} ms` },
@@ -20,6 +20,7 @@ export const METRICS = [
   { key: 'noteF', label: 'Notes', hint: `melody notes found as tonal onsets (F-measure, ±${WINDOWS.note * 1000} ms)` },
   { key: 'pitchAcc', label: 'Pitch', hint: 'melody notes found at the right pitch (±½ semitone)' },
   { key: 'holdF', label: 'Holds', hint: `notes of ${LONG_NOTE} s or more found with about their length (±30%, F-measure)` },
+  { key: 'genreOk', label: 'Genre', hint: 'the labeled genre heard in the sound (1) or not (0)' },
 ];
 
 // Precision, recall and F-measure of estimated event times against reference times, and
@@ -157,6 +158,7 @@ export function scoreSong(labels, est) {
   const highs = (labels.highlights ?? []).map((h) => h.start).filter((t) => t > 1);
   if (highs.length) s.highlightR = fMeasure(highs, [...boundaries(est.sections ?? []), ...Array.from(est.drops ?? [])], WINDOWS.boundary).r;
   if (labels.notes?.length) noteScores(labels.notes, est.onsets, s);
+  if (labels.genre && est.sound) s.genreOk = est.sound.genre === labels.genre ? 1 : 0;
   return s;
 }
 

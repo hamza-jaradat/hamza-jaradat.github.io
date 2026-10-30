@@ -146,13 +146,7 @@ export class UI {
   showReady({ title, features, chart, best, genre }) {
     this.$('ready-title').textContent = title;
     this.markGenre(genre.choice);
-    const g = GENRES[genre.genre];
-    let why = '';
-    if (genre.choice === 'auto') {
-      if (genre.auto !== 'any') why = genre.tag ? `Auto picked ${g.label} from the file's tag “${genre.tag}”. ` : `Auto picked ${g.label}. `;
-      else why = genre.tag ? `Auto: the file's tag “${genre.tag}” names no genre it knows. ` : 'Auto: the file has no genre tag. ';
-    }
-    this.$('ready-genre-note').textContent = why + g.about;
+    this.$('ready-genre-note').textContent = (genre.choice === 'auto' ? autoReason(genre) + ' ' : '') + GENRES[genre.genre].about;
     drawGraph(this.$('ready-graph'), features, { labels: true });
     const stats = [
       [formatTime(features.duration), 'Length'],
@@ -301,6 +295,15 @@ export class UI {
     ];
     this.$('res-stats').innerHTML = stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
   }
+}
+
+// Why Auto plays the song as it does: the file's genre tag, its sound, or neither.
+function autoReason({ auto, from, tag, sound }) {
+  const label = GENRES[auto].label;
+  if (from === 'tag') return tag ? `Auto picked ${label} from the file's tag “${tag}”.` : `Auto picked ${label}.`;
+  if (from === 'sound') return `Auto picked ${label}: it sounds like ${sound.evidence.join(' and ')}.`;
+  const tagged = tag ? `the file's tag “${tag}” names no genre it knows` : 'the file has no genre tag';
+  return sound ? `Auto: ${tagged}, and its sound doesn't settle it.` : `Auto: ${tagged}.`;
 }
 
 // Song overview: intensity as heat-colored columns over the song's sections (lettered

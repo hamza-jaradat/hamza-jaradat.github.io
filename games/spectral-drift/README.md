@@ -32,8 +32,9 @@ your setup, adjust **Settings → Audio offset**.
 Before you start, pick the song's **genre**: Hip-hop, Rock, Electronic, Pop or Ambient.
 Each plays its own way: hip-hop bounces on the drums, rock is fast and dense, electronic
 dives into its drops, pop follows the vocal line, ambient is a slow, flowing road of long
-holds. **Auto** goes by the genre tag in the file (MP3, M4A, FLAC, OGG, Opus or WAV), and
-the game remembers your pick for each song.
+holds. **Auto** goes by the genre tag in the file (MP3, M4A, FLAC, OGG, Opus or WAV), or,
+when there's none to go by, by how the song sounds. The game remembers your pick for each
+song.
 
 ## How it works
 
@@ -46,9 +47,13 @@ the game remembers your pick for each song.
   - `notes.js`: the melody's notes, from Spotify's [Basic Pitch](https://github.com/spotify/basic-pitch)
     model (a small neural network that hears which piano keys sound, and when they start).
     The melody is the highest note that stands out above the bass; each onset takes its
-    pitch, and each melody note its real length (holds). `src/audio/transcribe.js` runs the
+    pitch, and each melody note its real length (holds). `src/audio/models.js` runs the
     model with TensorFlow.js, on the GPU (WebGL) or else with WebAssembly, and only after
     the rest of the analysis has started.
+  - `sound.js`: the genre a song sounds like, from Google's [YAMNet](https://github.com/tensorflow/models/tree/master/research/audioset/yamnet)
+    sound classifier, which hears 521 kinds of sound, music genres among them. It listens
+    to four stretches of the song, and the genre most of its moments sound like wins. It
+    runs only for files without a usable genre tag.
   - `pitch.js`: a chroma (harmony) per frame, and the fallback melody pitch for browsers
     that can't run the model.
   - `beats.js`: tempo, a dynamic-programming beat tracker, a steady-grid fit for
@@ -56,9 +61,9 @@ the game remembers your pick for each song.
   - `structure.js`: sections from a bar self-similarity matrix (repeats share a letter),
     with drops, build-ups and breakdowns.
 - `src/game/genres.js`: what each genre expects of the music (its usual tempo) and how
-  its chart and road play; `src/audio/tags.js` reads a file's genre tag for Auto. The
-  analysis worker keeps the song, so switching genre redoes only the fast half of the
-  analysis.
+  its chart and road play; `src/audio/tags.js` reads a file's genre tag for Auto (else
+  `sound.js` listens). The analysis worker keeps the song, so switching genre redoes only
+  the fast half of the analysis.
 - `src/game/Chart.js`: notes snap to the beat grid; easier difficulties keep the
   strongest notes on the strongest beats; lanes follow the melody's pitch (or sway with
   the beat); repeated bars repeat their pattern; long tones become holds; every drop
@@ -95,6 +100,7 @@ This analyzes every labeled song and prints one score per song and task, plus me
 | Notes | Melody notes found as tonal onsets, within 50 ms |
 | Pitch | Melody notes found at the right pitch |
 | Holds | Notes of 0.45 s or more found with about their length |
+| Genre | Whether the song's sound says its labeled genre (songs labeled with one) |
 | Overall | A weighted mean of the above (beats count most) |
 
 Six built-in songs always run: the demo, whose layout and notes the synth knows exactly,
@@ -115,8 +121,9 @@ A bot plays every genre and difficulty of the built-in songs; it should collect 
 note, hit no hazard and finish every hold.
 
 A song's labels can name its genre (`"genre": "rock"`): it is then analyzed as the game
-would analyze that genre, and the benchmark adds a mean per genre, which shows the genres
-the analysis handles worst.
+would analyze that genre, the benchmark checks that YAMNet hears that genre in it (the
+Genre score, also cached), and it adds a mean per genre, which shows the genres the
+analysis handles worst.
 
 ### Label your own songs
 
@@ -174,3 +181,8 @@ them with `--params bench/tuned-params.json`, then copy the ones you trust into
 The melody comes from [Basic Pitch](https://github.com/spotify/basic-pitch) by Spotify
 (Apache License 2.0). Its model is in `src/audio/analysis/basic-pitch/` with its license, and
 `src/audio/analysis/notes.js` follows its note tracking.
+
+The genre a song sounds like comes from [YAMNet](https://github.com/tensorflow/models/tree/master/research/audioset/yamnet)
+by Google (Apache License 2.0), from its [TensorFlow.js release](https://www.kaggle.com/models/google/yamnet).
+Its model is in `src/audio/analysis/yamnet/` with its license; the weights of its larger
+layers are stored as 8-bit values there, which keeps it to 4.4 MB.

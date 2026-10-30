@@ -1,0 +1,6 @@
+YAMNet, by Google (https://github.com/tensorflow/models/tree/master/research/audioset/yamnet),
+from its TensorFlow.js release (https://www.kaggle.com/models/google/yamnet, tfjs v1), under
+the Apache License 2.0 (see LICENSE).
+
+Changed for Spectral Drift: the weights of its larger layers are stored as 8-bit values
+(per tensor, min + scale * value), with the converter's quantization format.

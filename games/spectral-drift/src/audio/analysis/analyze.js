@@ -6,9 +6,10 @@
 // It runs in two halves. prepare() does the heavy signal processing that has no tunable
 // params; interpret() turns its output into notes, beats, bars and structure under a set
 // of params. In between, the caller adds the Basic Pitch model's activations (notes.js) to
-// prepare()'s output as `keys`, if it can run the model: they give the melody's notes. The
-// game runs all of it with the defaults (analysis.worker.js); the benchmark caches the
-// first two per song and re-runs interpret() while tuning.
+// prepare()'s output as `keys`, if it can run the model: they give the melody's notes. It
+// may add YAMNet's scores (sound.js) as `sound` too, for the genre the music sounds like.
+// The game runs all of it (analysis.worker.js); the benchmark caches the models' output per
+// song and re-runs interpret() while tuning.
 import { clamp, movingAverage, percentile } from '../../util.js';
 import { barPositions, estimateTempo, extendBeats, steadyGrid, trackBeats } from './beats.js';
 import { hpss } from './hpss.js';
@@ -16,6 +17,7 @@ import { KEY_RATE, joinMelody, leadLine, trackNotes } from './notes.js';
 import { ONSET, ONSET_FIELDS, detectOnsets, flux, logSpec, strengths } from './onsets.js';
 import { DEFAULT_PARAMS } from './params.js';
 import { pitchAt, pitchTrack } from './pitch.js';
+import { genreOf } from './sound.js';
 import { BANDS, bandRange, spectrogram } from './spectrogram.js';
 import { analyzeStructure } from './structure.js';
 
@@ -204,6 +206,8 @@ export function interpret(prep, params = DEFAULT_PARAMS, progress = noop) {
     drops: structure.drops,
     builds: structure.builds,
     breakdowns: structure.breakdowns,
+    // The genre the music sounds like ({ genre or null, shares, evidence }), if asked for.
+    sound: prep.sound ? genreOf(prep.sound) : null,
   };
 }
 

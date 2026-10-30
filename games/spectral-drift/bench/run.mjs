@@ -21,7 +21,7 @@ import { hashString, mulberry32 } from '../src/util.js';
 import { METRICS, overall, scoreSong, summarize } from './metrics.js';
 import { decode, listSongs, readLabels, songsDir } from './songs.js';
 import { BUILT_IN } from './suite.js';
-import { keysFor } from './transcribe.js';
+import { keysFor, soundFor } from './transcribe.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -92,8 +92,9 @@ async function loadSongs() {
     const prep = prepare(x, sr);
     const t1 = performance.now();
     if (!args['no-notes']) prep.keys = await keysFor(x, sr);
+    if (labels.genre) prep.sound = await soundFor(x, sr); // to check the genre heard
     const t2 = performance.now();
-    const notes = args['no-notes'] ? '' : `, notes in ${((t2 - t1) / 1000).toFixed(1)} s`;
+    const notes = t2 - t1 > 50 ? `, models in ${((t2 - t1) / 1000).toFixed(1)} s` : '';
     log(`  ${name}  (${(x.length / sr).toFixed(0)} s, analyzed in ${((t1 - t0) / 1000).toFixed(1)} s${notes})`);
     out.push({ name, labels, prep });
   };

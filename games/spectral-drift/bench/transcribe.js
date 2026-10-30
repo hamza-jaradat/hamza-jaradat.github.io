@@ -1,47 +1,71 @@
-// The Basic Pitch model's activations for the benchmark's songs (see
-// src/audio/analysis/notes.js), run with TensorFlow.js's WebAssembly backend. They take about
-// a tenth of a song's length to compute and change only with the audio, so they are cached
-// in bench/.cache (out of git), keyed by the audio itself.
+// The neural networks' output for the benchmark's songs: Basic Pitch's activations (see
+// src/audio/analysis/notes.js) and YAMNet's genre scores (sound.js), run with TensorFlow.js's
+// WebAssembly backend. They take a while to compute and change only with the audio, so
+// they are cached in bench/.cache (out of git), keyed by the audio itself.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NOTE_SR, keyActivations, loadModel, resample } from '../src/audio/analysis/notes.js';
+import { soundScores } from '../src/audio/analysis/sound.js';
 
 const require = createRequire(import.meta.url);
 const HERE = dirname(fileURLToPath(import.meta.url));
-const MODEL = join(HERE, '../src/audio/analysis/basic-pitch');
+const MODELS = join(HERE, '../src/audio/analysis');
 const CACHE = join(HERE, '.cache');
 const KEYS = 88;
 
-let model = null;
 let tf = null;
+const models = {};
+
+async function model(name) {
+  if (!tf) {
+    tf = require('@tensorflow/tfjs-core');
+    require('@tensorflow/tfjs-backend-wasm');
+    await tf.setBackend('wasm');
+  }
+  if (!models[name]) {
+    const { loadGraphModel } = require('@tensorflow/tfjs-converter');
+    const bin = readFileSync(join(MODELS, name, 'group1-shard1of1.bin'));
+    const json = JSON.parse(readFileSync(join(MODELS, name, 'model.json'), 'utf8'));
+    models[name] = await loadModel(loadGraphModel, json, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.length));
+  }
+  return models[name];
+}
 
 export async function keysFor(x, sr) {
   const audio = resample(x, sr);
-  const file = join(CACHE, `${fingerprint(audio)}.keys`);
+  const file = join(CACHE, `${fingerprint(audio, NOTE_SR)}.keys`);
   if (existsSync(file)) return readKeys(readFileSync(file));
-  if (!model) {
-    tf = require('@tensorflow/tfjs-core');
-    require('@tensorflow/tfjs-backend-wasm');
-    const { loadGraphModel } = require('@tensorflow/tfjs-converter');
-    await tf.setBackend('wasm');
-    const bin = readFileSync(join(MODEL, 'group1-shard1of1.bin'));
-    const json = JSON.parse(readFileSync(join(MODEL, 'model.json'), 'utf8'));
-    model = await loadModel(loadGraphModel, json, bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.length));
-  }
-  const keys = await keyActivations(tf, model, audio);
+  const basicPitch = await model('basic-pitch');
+  const keys = await keyActivations(tf, basicPitch, audio);
   mkdirSync(CACHE, { recursive: true });
   writeFileSync(file, writeKeys(keys));
   return keys;
 }
 
+export async function soundFor(x, sr) {
+  const file = join(CACHE, `${fingerprint(x, sr)}.sound`);
+  if (existsSync(file)) {
+    const buf = readFileSync(file);
+    const scores = new Float32Array(buf.buffer.slice(buf.byteOffset + 4, buf.byteOffset + buf.length));
+    return { scores, n: buf.readUInt32LE(0) };
+  }
+  const yamnet = await model('yamnet');
+  const sound = await soundScores(tf, yamnet, x, sr);
+  mkdirSync(CACHE, { recursive: true });
+  const head = Buffer.alloc(4);
+  head.writeUInt32LE(sound.n);
+  writeFileSync(file, Buffer.concat([head, Buffer.from(sound.scores.buffer, sound.scores.byteOffset, sound.scores.byteLength)]));
+  return sound;
+}
+
 // FNV-1a over every 7th sample's bits, the length and the rate.
-function fingerprint(x) {
+function fingerprint(x, sr) {
   const bits = new Uint32Array(x.buffer, x.byteOffset, x.length);
   let h = 2166136261 ^ x.length;
   for (let i = 0; i < bits.length; i += 7) h = Math.imul(h ^ bits[i], 16777619);
-  return `${(h >>> 0).toString(16)}-${x.length}-${NOTE_SR}`;
+  return `${(h >>> 0).toString(16)}-${x.length}-${sr}`;
 }
 
 // Activations stored as 16-bit fractions: [n, frames..., onsets...].
